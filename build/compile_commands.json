@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/daniel/Documents/Technion/תשפ״ב - סמסטר חורף/תורת הקומפילציה - 236360/HWs/HW5/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++    -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk   -std=gnu++17 -o CMakeFiles/HW5.dir/bp.cpp.o -c \"/Users/daniel/Documents/Technion/תשפ״ב - סמסטר חורף/תורת הקומפילציה - 236360/HWs/HW5/bp.cpp\"",
+  "file": "/Users/daniel/Documents/Technion/תשפ״ב - סמסטר חורף/תורת הקומפילציה - 236360/HWs/HW5/bp.cpp"
+}
+]

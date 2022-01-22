@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.16.9)
 project(HW5)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(HW5 main.cpp)
+add_executable(HW5 bp.cpp bp.hpp)

@@ -1,0 +1,632 @@
+%{
+#include "bp.hpp"
+#include "NonTerminalClasses.h"
+#include "SymbolTable.h"
+#include <vector>
+#include <iostream>
+
+using namespace std;
+using namespace output;
+
+void yyerror(const char*);
+bool isNumbers(const Object* type1, const Object* type2);
+bool isBools(const Object* type1, const Object* type2);
+void destroyOnExit();
+void destroyAll();
+void endOfScope();
+void initialEmit();
+std::string getNextReg();
+SymbolTable symbolTable;
+int whileCounter = 0;
+int regCounter = 0;
+ProtoType* returnType = nullptr;
+std::vector<Object*> toDeleteList;
+extern int yylineno;
+extern int yylex();
+%}
+
+
+/* Declarations */
+%define api.value.type { Object* }
+
+%token VOID
+%token INT
+%token BYTE
+%token B
+%token BOOL
+%token CONST
+%token TRUE
+%token FALSE
+%token RETURN
+%token IF
+%token ELSE
+%token WHILE
+%token BREAK
+%token CONTINUE 
+%token SC
+%token COMMA
+%token LPAREN
+%token RPAREN
+%token LBRACE
+%token RBRACE
+%token ID
+%token NUM
+%token STRING
+
+/* -----operators----- */
+%token ASSIGN
+%token OR
+%token AND
+%token RELOP_EQ
+%token RELOP_RELATION
+%token PLUS_MINUS
+%token PRODUCT_DEVISION
+%token NOT
+/* ------------------- */
+
+%right ASSIGN
+%left OR
+%left AND
+%left RELOP_EQ
+%nonassoc RELOP_RELATION
+%left PLUS_MINUS
+%left PRODUCT_DEVISION
+%right NOT
+%right LPAREN
+%left RPAREN
+
+%%
+/* Rules */
+Program: { 
+            // cout << 1 << endl;
+            ProtoType* voidTmp = new Void();
+            ProtoType* stringTmp = new String();
+            ProtoType* intTmp = new Int();
+            toDeleteList.push_back(voidTmp);
+            toDeleteList.push_back(stringTmp);
+            toDeleteList.push_back(intTmp);
+            symbolTable.insertAtTop("print", Func(*voidTmp, "random1", *stringTmp));
+            symbolTable.insertAtTop("printi", Func(*voidTmp, "random2", *intTmp));
+            initialEmit();
+         } Funcs { 
+            //  cout << 2 << endl;
+          };
+Funcs: FuncDecl Funcs //{ cout << 2 << "a" << endl; } //maybe need to flip
+            | //{ cout << 2 << "b" << endl; }
+;
+FuncDecl: RetType ID LPAREN Formals RPAREN {
+                // cout << 3 << endl;
+                toDeleteList.push_back($2);
+                if (symbolTable.findId((dynamic_cast<Id*>($2)->id))) {
+                    errorDef(yylineno, (dynamic_cast<Id*>($2)->id));
+                    destroyOnExit();
+                } else {
+                    symbolTable.insertAtTop(dynamic_cast<Id*>($2)->id, Func(*(dynamic_cast<ProtoType*>($1)), dynamic_cast<Formals*>($4)->getNames(), dynamic_cast<Formals*>($4)->getTypes()));
+                    symbolTable.pushNewEntry();
+                    if(symbolTable.addParameters(*(dynamic_cast<Formals*>($4)), yylineno)) {
+                        destroyOnExit();
+                    }
+                    returnType = dynamic_cast<ProtoType*>($1);
+                    string cmdRetType();
+                    if(returnType->isByte()) {
+                        cmdRetType = "i8";
+                    } else if(returnType->isInt()) {
+                        cmdRetType = "i32";
+                    } else if(returnType->isBool()) {
+                        cmdRetType = "i1";
+                    } else if(returnType->isVoid()) {
+                        cmdRetType = "void";
+                    }
+                    string cmd("define ");
+                    cmd += cmdRetType + " @" + dynamic_cast<Id*>($2)->id + "("+ toLlvmTypes(dynamic_cast<Formals*>($4)->getTypes()) + ") {";
+                    CodeBuffer::instance.emit(cmd);
+                    CodeBuffer::instance.emit("\%stack = alloca i32, i32 50");
+                }
+          } LBRACE Statements RBRACE {
+                //cout << 4 << endl;
+                endOfScope();
+                returnType = nullptr;
+          }
+;
+RetType:      Type { $$ = $1; } //cout << 5 << endl;}
+            | VOID { $$ = new Void(); toDeleteList.push_back($$); } //cout << 6 << endl;}
+;
+Formals:     FormalsList {/*cout << 7 << endl;*/ $$ = new Formals(*(dynamic_cast<FormalsList*>($1))); toDeleteList.push_back($$); }
+            | { /*cout << 8 << endl;*/ $$ = new Formals(); toDeleteList.push_back($$); }
+;
+FormalsList: FormalDecl COMMA FormalsList { /*cout << 9 << endl;*/ $$ = new FormalsList(*dynamic_cast<FormalDecl*>($1), dynamic_cast<FormalsList*>($3)->getList()); toDeleteList.push_back($$); }// delete $1; delete $3;} /* maybe need to flip */
+            | FormalDecl { /*cout << 10 << endl;*/ $$ = new FormalsList(*dynamic_cast<FormalDecl*>($1)); toDeleteList.push_back($$); }
+;
+FormalDecl: TypeAnnotation Type ID {
+    //cout << 11 << endl;
+    toDeleteList.push_back($3);
+    if(!symbolTable.findId((dynamic_cast<Id*>($3)->id))) {
+        dynamic_cast<ProtoType*>($2)->setConst(dynamic_cast<TypeAnnotation*>($1)->getIsConst());
+        $$ = new FormalDecl(*(dynamic_cast<ProtoType*>($2)), dynamic_cast<Id*>($3)->id);
+        toDeleteList.push_back($$);
+    } else {
+        errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
+        destroyOnExit();
+    }
+};
+Statements:  Statement Statements//{ $$ = calcStatement($1, $2); } /* maybe need to flip */
+            | Statement //{ $$ = Statement($1); }
+;
+Statement: OpenStatement //{ $$ = Statement($1); }
+			| ClosedStatement //{ $$ = Statement($1); }
+;
+OpenStatement: IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
+                    // cout << 12 << endl;
+                    endOfScope();
+                }
+            | IF LPAREN Exp IfWhileMarker RPAREN OpenStatement { 
+                // cout << 13 << endl;
+                endOfScope();
+            }
+            | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE OpenStatement { 
+                // cout << 14 << endl;
+                endOfScope();
+            }
+            | WHILE WhileMarker LPAREN Exp IfWhileMarker RPAREN OpenStatement { /*cout << 15 << endl;*/ endOfScope();  whileCounter--;}
+;
+ClosedStatement: NonIfStatement //{ $$ = Statement($1); }
+            | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE ClosedStatement { /*cout << 16 << endl;*/ endOfScope(); }
+            | WHILE WhileMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement { /*cout << 17 << endl;*/ endOfScope(); whileCounter--;}
+;
+WhileMarker: { /*cout << 18 << endl;*/ whileCounter++; }
+IfWhileMarker: { 
+        // cout << 19 << endl;
+     if ($0->isBool()) {
+        symbolTable.pushNewEntry();
+     } else {
+         errorMismatch(yylineno);
+         destroyOnExit();
+    }
+};
+ElseMarker: { 
+    //cout << 20 << endl;
+    endOfScope();
+    symbolTable.pushNewEntry();
+}
+NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOfScope(); } //{ $$ = Statement($2); } 
+            | TypeAnnotation Type ID SC { 
+                // cout << 21 << endl;
+                toDeleteList.push_back($3);
+                if (!symbolTable.findId((dynamic_cast<Id*>($3)->id))) {
+                    // cout << 21 << "a" << endl;
+                    if (dynamic_cast<TypeAnnotation*>($1)->getIsConst()) {
+                        errorConstDef(yylineno);
+                        destroyOnExit();
+                    }
+                    symbolTable.insertAtTop((dynamic_cast<Id*>($3)->id), *(dynamic_cast<ProtoType*>($2)));
+                    std::string cmd;
+                    if(dynamic_cast<ProtoType*>($2)->isBool()) { //var is bool
+                        std::string reg1 = getNextReg();
+                        std::string tmpLine = reg1 + " = zext i1 false to i32"; //%t0 = zext i1 false to i32
+                        CodeBuffer::instance.emit(tmpLine);
+                        
+                    } else { //var is num
+                        std::string reg1 = getNextReg();
+                        std::string tmpLine = reg1 + " = i32 0"; //%t0 = i32 0 
+                        //TODO: check if you can do i32 0
+                        CodeBuffer::instance.emit(tmpLine);
+                    }
+                    std::string reg2 = getNextReg();
+                    int offset = symbolTable.findAbsoluteOffset(dynamic_cast<Id*>($3)->id)
+                    tmpLine = reg2 + " = add i32 " + offset + ", \%stack"; //%t1 = add i32 offset, %stack
+                    CodeBuffer::instance.emit(tmpLine);
+                    tmpLine = "store i32 " + reg1 + ", i32* " + reg2; //store i32 %t0, i32* %t1
+                    CodeBuffer::instance.emit(tmpLine);
+                } else {
+                    // cout << 21 << "b" << endl;
+                    errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
+                    destroyOnExit();
+                }
+             } //$$ = Statement(nullptr); } //TODO: need to push to symbol Table and check Types
+            | TypeAnnotation Type ID ASSIGN Exp SC { 
+                //cout << 22 << endl;
+                toDeleteList.push_back($3);
+                if (!symbolTable.findId((dynamic_cast<Id*>($3)->id))) {
+                    if (isNumbers($2, $5)) {
+                        if ($5->isInt() && $2->isByte()) {
+                            errorMismatch(yylineno);
+                            destroyOnExit();
+                        }
+                    } else if (!isBools($2, $5)) {
+                        errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                    dynamic_cast<ProtoType*>($2)->setConst(dynamic_cast<TypeAnnotation*>($1)->getIsConst());
+                    symbolTable.insertAtTop((dynamic_cast<Id*>($3)->id), *(dynamic_cast<ProtoType*>($2)));
+                                            
+                    int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
+                    std::string value = $5->getValue(); //value is a terminal like b5, 13, true... or a register
+                    std::string reg1 = getNextReg();
+                    std::tempLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    CodeBuffer::instance.emit(tmpLine);
+                    if(isRegister(value)) {
+                        std::line = "store i32 " + value + ", i32* " + reg1;
+                        CodeBuffer::instance.emit(line);
+                    } else {
+                        if(dynamic_cast<TypeAnnotation*>($1)->getIsConst()) { //TODO: Add flag and value for const in SymbolTableEntry! and setting and getting this value in SymbolTable by id
+                            symbolTable.setValueById((dynamic_cast<Id*>($3)->id), std::stoi(value));
+                        } else {
+                            if ($5->isBool()) {
+                                std::string reg2 = getNextReg();
+                                tmpLine = reg2 + " = zext i1 " + value + " to i32";
+                                CodeBuffer::instance.emit(tmpLine);
+                            } else if ($5->isByte()) {
+                                std::string reg2 = getNextReg();
+                                tmpLine = reg2 + " = zext i8 " + value + " to i32";
+                                CodeBuffer::instance.emit(tmpLine);
+                            } else {
+                                std::string reg2 = value;
+                            }
+                            std::string line = "store i32 " + reg2 + ", i32* " + reg1;
+                            CodeBuffer::instance.emit(line);
+                        }   
+                    }
+                } else {
+                    errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
+                    destroyOnExit();
+                }
+            } //$$ = Statement(nullptr); }
+            | ID ASSIGN Exp SC { 
+                //cout << 23 << endl;
+                toDeleteList.push_back($1);
+                if (symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
+                    if (type.isFunc()) {
+                        errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
+                        destroyOnExit();
+                    } else if (type.getIsConst()) {
+                        errorConstMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                    if (isNumbers(&type, $3)) {
+                        if ($3->isInt() && type.isByte()) {
+                            errorMismatch(yylineno);
+                            destroyOnExit();
+                        }
+                    } else if (!isBools($3, &type)) {
+                        errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+
+                    //TODO: check if this is good
+                    int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
+                    std::string value = $3->getValue(); //value is a terminal like b5, 13, true... or a register
+                    std::string reg1 = getNextReg();
+                    std::tempLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    CodeBuffer::instance.emit(tmpLine);
+                    if(isRegister(value)) {
+                        std::line = "store i32 " + value + ", i32* " + reg1;
+                    } else {   
+                        if ($3->isBool()){
+                            std::string reg2 = getNextReg();
+                            tmpLine = reg2 + " = zext i1 " + value + " to i32";
+                            CodeBuffer::instance.emit(tmpLine);
+                        } else if ($3->isByte()) {
+                            std::string reg2 = getNextReg();
+                            tmpLine = reg2 + " = zext i8 " + value + " to i32";
+                            CodeBuffer::instance.emit(tmpLine);
+                        } else {
+                            std::string reg2 = value;
+                        }
+                        std::string line = "store i32 " + reg2 + ", i32* " + reg1;
+                    }
+                    CodeBuffer::instance.emit(line);
+                } else {
+                    errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
+                    destroyOnExit();
+                }
+            } // $$ = Statement(nullptr); }
+            | Call SC //delete $1; }
+            | RETURN SC {
+                if (!returnType->isVoid()) {
+                    errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            } //$$ = Statement(Void()); }
+            | RETURN Exp SC { 
+                // cout << 25 << endl;
+                if (isNumbers($2, returnType)) {
+                    if ($2->isInt() && returnType->isByte()) {
+                        errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                } else if (!isBools($2, returnType)) {
+                    errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }//$$ = Statement($2); }
+            | BREAK SC { 
+                //cout << 26 << endl;
+                if (whileCounter <= 0) {
+                    errorUnexpectedBreak(yylineno); 
+                    destroyOnExit();
+                }
+            }
+            | CONTINUE SC {
+                //cout << 27 << endl;
+                 if(whileCounter <= 0) {
+                     errorUnexpectedContinue(yylineno); 
+                     destroyOnExit();
+                 }
+            }
+;
+Call:         ID LPAREN ExpList RPAREN {
+                // cout << 28 << endl;
+                // cout << (dynamic_cast<Id*>($1)->id) << endl;
+                toDeleteList.push_back($1);
+                if(symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    // cout << 28 << "a" << endl;
+                    ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
+                    // cout << 28 << "b" << endl;
+                    if(!type.isFunc()) {  //TODO: need to check if this is the right error to print
+                        //delete returnType;
+                        // cout << 28 << "c" << endl;
+                        errorUndefFunc(yylineno, (dynamic_cast<Id*>($1)->id));
+                        destroyOnExit();
+                    } else {
+                        // cout << 28 << "d" << endl;
+                        if(type.compareArgs(dynamic_cast<ExpList*>($3)->getExpList())) {
+                            $$ = new Call(type.getReturnType());
+                        } else {
+                            vector<std::string> vec = dynamic_cast<Func&>(type).getStrList();
+                            errorPrototypeMismatch(yylineno, dynamic_cast<Id*>($1)->id, vec);
+                            destroyOnExit();
+                        }
+                    }
+                } else {
+                    errorUndefFunc(yylineno, (dynamic_cast<Id*>($1)->id));
+                    destroyOnExit();
+                }
+            }
+			| ID LPAREN RPAREN {
+                //cout << 29 << endl;
+                toDeleteList.push_back($1);
+                if(symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
+                    if(!type.isFunc()) {
+                        errorUndefFunc(yylineno, (dynamic_cast<Id*>($1)->id));
+                        destroyOnExit();
+                    } else {
+                        if(type.compareArgs()) {
+                            $$ = new Call(type.getReturnType());
+                        } else {
+                            vector<std::string> vec;
+                            errorPrototypeMismatch(yylineno, (dynamic_cast<Id*>($1)->id), vec);
+                            destroyOnExit();
+                        }
+                    }
+                } else {
+                    errorUndefFunc(yylineno, (dynamic_cast<Id*>($1)->id));
+                    destroyOnExit();    
+                }
+            }
+;
+ExpList:      Exp COMMA ExpList { /*cout << 30 << endl;*/ $$ = new ExpList(*(dynamic_cast<ProtoType*>($1)), dynamic_cast<ExpList*>($3)->getExpList()); toDeleteList.push_back($$); /*delete $1; delete $3;*/} /* maybe need to flip */
+			| Exp { /*cout << 31 << endl;*/ $$ = new ExpList(*(dynamic_cast<ProtoType*>($1))); toDeleteList.push_back($$); /*delete $1;*/ } //TODO: check if exp dies in expList afterwards
+;
+Type:         INT { /*cout << 32 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); }
+    		| BYTE { /*cout <<33 << endl;*/ $$ = new Byte(); toDeleteList.push_back($$); }
+    		| BOOL { /* out << 34 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
+;
+TypeAnnotation:  CONST { /*cout << 35 << endl;*/ $$ = new TypeAnnotation(true); toDeleteList.push_back($$); }
+        	    | { /*cout << 36 << endl;*/ $$ = new TypeAnnotation(); toDeleteList.push_back($$); }
+;
+Exp:          LPAREN Exp RPAREN {
+                //cout << 37 << endl;
+                $$ = $2;
+            }
+            | Exp PRODUCT_DEVISION Exp {
+                //cout << 38 << endl;
+                if(isNumbers($1, $3)) {
+                    if($1->isInt() || $3->isInt()) {
+                        $$ = new Int();
+                    } else {
+                        $$ = new Byte();
+                    }
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp PLUS_MINUS Exp {
+                //cout << 39 << endl;
+                if(isNumbers($1, $3)) {
+                    if($1->isInt() || $3->isInt()) {                        
+                        $$ = new Int();
+                    } else {
+                        $$ = new Byte();
+                    }
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+			| ID {
+                //cout << 40 << endl;
+                toDeleteList.push_back($1);
+                if(symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
+                    if(type.isFunc()) {  //TODO: need to check if this is the right error to print
+                        errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
+                        destroyOnExit();
+                    } else {
+                        $$ = &type; 
+                    }
+                } else { 
+                    errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
+                    destroyOnExit();
+                }
+            }
+			| Call { /*cout << 41 << endl;*/$$ = dynamic_cast<Call*>($1)->getReturnType(); }  //TODO: do it
+            | NUM B { 
+                //cout << 42 << endl;
+                toDeleteList.push_back($1);
+                if (((dynamic_cast<Num*>($1)->num) > 255)) {
+                    errorByteTooLarge(yylineno, to_string(((dynamic_cast<Num*>($1)->num))));
+                    destroyOnExit();
+                } else {
+                    $$ = new Byte(); 
+                    toDeleteList.push_back($$);
+                }
+            } /* maybe need to flip */
+            | NUM { /*cout << 43 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); toDeleteList.push_back($1); }
+			| STRING {/*cout << 44 << endl;*/ $$ = new String(); toDeleteList.push_back($$); }
+			| TRUE {/*cout << 45 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
+            | FALSE { /*cout << 46 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
+			| NOT Exp {
+                //cout << 47 << endl;
+                if($2->isBool()) {
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp AND Exp {
+                //cout << 48 << endl;
+                if(isBools($1, $3)) {
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp OR Exp {
+                //cout << 49 << endl;
+                if(isBools($1, $3)) {
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp RELOP_RELATION Exp {
+                //cout << 50 << endl;
+                if(isNumbers($1, $3)) {
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                }  else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp RELOP_EQ Exp {
+                //cout << 51 << endl;
+                if(isNumbers($1, $3)) {
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | LPAREN Type RPAREN Exp {
+                //cout << 52 << endl;
+                if($4->isInt()) {
+                    if($2->isBool()) {
+                        output::errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                    if($2->isInt()) {
+                        $$ = new Int();
+                        toDeleteList.push_back($$);
+                    } else {
+                        $$ = new Byte();
+                        toDeleteList.push_back($$);
+                    }
+                } else if($4->isByte()) {
+                    if($2->isBool()) {
+                        output::errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                    if($2->isInt()) {
+                        $$ = new Int();
+                        toDeleteList.push_back($$);
+                    } else {
+                        $$ = new Byte();
+                        toDeleteList.push_back($$);
+                    }
+                } else if($4->isBool()) {
+                    if(!$2->isBool()) {
+                        output::errorMismatch(yylineno);
+                        destroyOnExit();
+                    }
+                    $$ = new Bool();
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+;
+%%
+/* C user routines */
+void yyerror(const char*) {
+    output::errorSyn(yylineno); 
+    destroyOnExit();
+}
+
+bool isNumbers(const Object* type1, const Object* type2) {
+    return (type1->isInt() || type1->isByte()) && (type2->isInt() || type2->isByte());
+}
+
+bool isBools(const Object* type1, const Object* type2) {
+    return type1->isBool() && type2->isBool();
+}
+
+void destroyAll() {
+    for(auto p : toDeleteList) {
+        delete p;
+    }
+}
+
+void destroyOnExit() {
+    destroyAll();
+    exit(0);
+}
+
+void endOfScope() {
+    endScope();
+    cout << symbolTable.top();
+    symbolTable.pop();
+    /* endScope(); */
+}
+
+void initialEmit() {
+    CodeBuffer::instance.emit("declare i32 @printf(i8*, ...)");
+    CodeBuffer::instance.emit("declare void @exit(i32)");
+    CodeBuffer::instance.emit("@.int_specifier = constant [4 x i8] c\"\%d\\0A\\00\"");
+    CodeBuffer::instance.emit("@.str_specifier = constant [4 x i8] c\"\%s\\0A\\00\"");
+    CodeBuffer::instance.emit("define void @printi(i32) {");
+    CodeBuffer::instance.emit("\%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
+    CodeBuffer::instance.emit("call i32 (i8*, ...) @printf(i8* \%spec_ptr, i32 %0)");
+    CodeBuffer::instance.emit("ret void");
+    CodeBuffer::instance.emit("}");
+    CodeBuffer::instance.emit("define void @print(i8*) {");
+    CodeBuffer::instance.emit("\%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
+    CodeBuffer::instance.emit("call i32 (i8*, ...) @printf(i8* \%spec_ptr, i8* %0)");
+    CodeBuffer::instance.emit("ret void");
+    CodeBuffer::instance.emit("}");
+}
+
+int main() {
+    yyparse();
+    if(!symbolTable.isMainExists()) {
+        errorMainMissing();
+        destroyOnExit();
+    }
+    endScope();
+    cout << symbolTable.top();
+    symbolTable.pop();
+    destroyAll();
+}
