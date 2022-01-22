@@ -55,7 +55,10 @@ public:
     bool findId(const std::string& id) const;
     ProtoType& getIdType(const std::string& id) const;
     bool addParameters(const Formals& parameters, int lineno);
-    int getAbsoluteOffset(const str::string& id);
+    int getAbsoluteOffset(const std::string& id);
+    void setValueById(const std::string& id);
+    string getValueById(const std::string& id);
+
 };
 
 #endif //HW3_SYMBOLTABLE_H

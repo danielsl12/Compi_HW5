@@ -1,4 +1,5 @@
 %{
+#include "hw3_output.hpp"
 #include "bp.hpp"
 #include "NonTerminalClasses.h"
 #include "SymbolTable.h"
@@ -15,6 +16,7 @@ void destroyOnExit();
 void destroyAll();
 void endOfScope();
 void initialEmit();
+bool isRegister(std::string val);
 std::string getNextReg();
 SymbolTable symbolTable;
 int whileCounter = 0;
@@ -59,8 +61,12 @@ extern int yylex();
 %token AND
 %token RELOP_EQ
 %token RELOP_RELATION
-%token PLUS_MINUS
-%token PRODUCT_DEVISION
+/* %token PLUS_MINUS */
+%token PLUS
+%token MINUS
+/* %token PRODUCT_DEVISION */
+%token PRODUCT
+%token DEVISION
 %token NOT
 /* ------------------- */
 
@@ -69,8 +75,12 @@ extern int yylex();
 %left AND
 %left RELOP_EQ
 %nonassoc RELOP_RELATION
-%left PLUS_MINUS
-%left PRODUCT_DEVISION
+/* %left PLUS_MINUS */
+%left PLUS
+%left MINUS
+/* %left PRODUCT_DEVISION */
+%left PRODUCT
+%left DEVISION
 %right NOT
 %right LPAREN
 %left RPAREN
@@ -242,14 +252,14 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
                     std::string value = $5->getValue(); //value is a terminal like b5, 13, true... or a register
                     std::string reg1 = getNextReg();
-                    std::tempLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
                     CodeBuffer::instance.emit(tmpLine);
                     if(isRegister(value)) {
                         std::line = "store i32 " + value + ", i32* " + reg1;
                         CodeBuffer::instance.emit(line);
                     } else {
                         if(dynamic_cast<TypeAnnotation*>($1)->getIsConst()) { //TODO: Add flag and value for const in SymbolTableEntry! and setting and getting this value in SymbolTable by id
-                            symbolTable.setValueById((dynamic_cast<Id*>($3)->id), std::stoi(value));
+                            symbolTable.setValueById((dynamic_cast<Id*>($3)->id), value);
                         } else {
                             if ($5->isBool()) {
                                 std::string reg2 = getNextReg();
@@ -297,7 +307,7 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
                     std::string value = $3->getValue(); //value is a terminal like b5, 13, true... or a register
                     std::string reg1 = getNextReg();
-                    std::tempLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
                     CodeBuffer::instance.emit(tmpLine);
                     if(isRegister(value)) {
                         std::line = "store i32 " + value + ", i32* " + reg1;
@@ -420,6 +430,101 @@ Exp:          LPAREN Exp RPAREN {
                 //cout << 37 << endl;
                 $$ = $2;
             }
+            | Exp PRODUCT Exp {
+                //cout << 38 << endl;
+                if(isNumbers($1, $3)) {
+                    if($1->isInt() || $3->isInt()) {
+                        $$ = new Int();
+                        std::string val1 = $1->getValue();
+                        std::string val3 = $3->getValue();
+                        std::string reg1 = getNextReg();
+                        string line;
+                        if ($1->isByte() && isRegister(val1)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = mul i32 " + reg2 + ", " + val3;
+                        } else if ($3->isByte() && isRegister(val3)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = mul i32 " + val1 + ", " + reg2;
+                        } else {
+                            line = reg1 + " = mul i32 " + val1 + ", " + val3;
+                        }
+                        $$->setValue(reg1);
+                        CodeBuffer::instance.emit(line);
+                    } else {
+                        $$ = new Byte();
+                        std::string val1 = $1->getValue();
+                        std::string val3 = $3->getValue();
+                        std::string reg1 = getNextReg();
+                        std::string line = reg1 + " = mul i8 " + val1 + ", " + val3;
+                        CodeBuffer::instance.emit(line);
+                        // std::reg2 = getNextReg();
+                        // line = reg2 + " = trunc i32 " + reg1 + " to i8";
+                        // CodeBuffer::instance.emit(line);
+                        $$->setValue(reg1); // need to change to reg2 if the above is not a comment
+                    }
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp DEVISION Exp {
+                //cout << 38 << endl;
+                if(isNumbers($1, $3)) {
+                    std::string val1 = $1->getValue();
+                    std::string val3 = $3->getValue();
+                    string cond = getNextReg();
+                    std::string line = cond + " = icmp eq i32 " + val3 + " 0";
+                    CodeBuffer::instance.emit(line);
+                    string trueLabel = "trueLabel" + std::to_string(regCounter);
+                    string falseLabel = "falseLabel" + std::to_string(regCounter);
+                    line = "br i1 " + cond + ", label %" + trueLabel + ", label %" + falseLabel;
+                    CodeBuffer::instance.emit(line);
+                    CodeBuffer::instance.emit(trueLabel + ":");
+                    string div = "%" + "divError" + std::to_string(regCounter);
+                    line = div + " = getelementptr inbounds [23 x i8]* @.devision_by_zero, i32 0, i32 0"
+                    CodeBuffer::instance.emit("call void @print(i8* " + div + ")");
+                    CodeBuffer::instance.emit("call void @exit(i32 1)");
+                    // %cond = icmp eq i32 val3, 0
+                    // br %cond <trueLabel> <falseLabel>
+                        CodeBuffer::instance.emit(falseLabel + ":");
+                    if($1->isInt() || $3->isInt()) {
+                        $$ = new Int();
+                        std::string reg1 = getNextReg();
+                        if ($1->isByte() && isRegister(val1)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = sdiv i32 " + reg2 + ", " + val3;
+                        } else if ($3->isByte() && isRegister(val3)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = sdiv i32 " + val1 + ", " + reg2;
+                        } else {
+                            line = reg1 + " = sdiv i32 " + val1 + ", " + val3;
+                        }
+                        //line = reg1 + " = sdiv i32 " + val1 + ", " + val3;
+                        $$->setValue(reg1);
+                        CodeBuffer::instance.emit(line);
+                    } else {
+                        $$ = new Byte();
+                        string reg1 = getNextReg();
+                        std::string line = reg1 + " = udiv i8 " + val1 + ", " + val3;
+                        $$->setValue(reg1);
+                        CodeBuffer::instance.emit(line);                        
+                    }
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            /*
             | Exp PRODUCT_DEVISION Exp {
                 //cout << 38 << endl;
                 if(isNumbers($1, $3)) {
@@ -434,6 +539,81 @@ Exp:          LPAREN Exp RPAREN {
                     destroyOnExit();
                 }
             }
+            */
+            | Exp PLUS Exp {
+                //cout << 39 << endl;
+                if(isNumbers($1, $3)) {
+                    if($1->isInt() || $3->isInt()) {                        
+                        $$ = new Int();
+                        std::string val1 = $1->getValue();
+                        std::string val3 = $3->getValue();
+                        std::string reg1 = getNextReg();
+                        string line;
+                        if ($1->isByte() && isRegister(val1)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = add i32 " + reg2 + ", " + val3;
+                        } else if ($3->isByte() && isRegister(val3)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = add i32 " + val1 + ", " + reg2;
+                        } else {
+                            line = reg1 + " = add i32 " + val1 + ", " + val3;
+                        }                        
+                        //line = reg1 + " = add i32 " + val1 + ", " + val3;
+                    } else {
+                        $$ = new Byte();
+                        std::string val1 = $1->getValue();
+                        std::string val3 = $3->getValue();
+                        std::string reg1 = getNextReg();
+                        string line = reg1 + " = add i8 " + val1 + ", " + val3;                     
+                    }
+                    $$->setValue(reg1);
+                    CodeBuffer::instance.emit(line);
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            | Exp MINUS Exp {
+                //cout << 39 << endl;
+                if(isNumbers($1, $3)) {
+                    std::string val1 = $1->getValue();
+                    std::string val3 = $3->getValue();
+                    std::string reg1 = getNextReg();
+                    string line;
+                    if($1->isInt() || $3->isInt()) {                        
+                        $$ = new Int();
+                        if ($1->isByte() && isRegister(val1)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = sub i32 " + reg2 + ", " + val3;
+                        } else if ($3->isByte() && isRegister(val3)) {
+                            string reg2 = getNextReg();
+                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            CodeBuffer::instance.emit(line);
+                            line = reg1 + " = sub i32 " + val1 + ", " + reg2;
+                        } else {
+                            line = reg1 + " = sub i32 " + val1 + ", " + val3;
+                        }
+                        //line = reg1 + " = sub i32 " + val1 + ", " + val3;
+                    } else {
+                        $$ = new Byte();
+                        line = reg1 + " = sub i8 "  + val1 + ", " + val3; // TODO: need to check how to handle unsigned byte
+                    }
+                    $$->setValue(reg1);
+                    CodeBuffer::instance.emit(line);
+                    toDeleteList.push_back($$);
+                } else {
+                    output::errorMismatch(yylineno);
+                    destroyOnExit();
+                }
+            }
+            /*
             | Exp PLUS_MINUS Exp {
                 //cout << 39 << endl;
                 if(isNumbers($1, $3)) {
@@ -448,6 +628,7 @@ Exp:          LPAREN Exp RPAREN {
                     destroyOnExit();
                 }
             }
+            */
 			| ID {
                 //cout << 40 << endl;
                 toDeleteList.push_back($1);
@@ -457,7 +638,19 @@ Exp:          LPAREN Exp RPAREN {
                         errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
                         destroyOnExit();
                     } else {
-                        $$ = &type; 
+                        $$ = &type;                        
+                        if($1->getIsConst()) {
+                            $$->setValue(symbolTable.getValueById(dynamic_cast<Id*>($1)->id));
+                        } else {
+                            int idOffset = symbolTable.getAbsoluteOffset(dynamic_cast<Id*>($1)->id);
+                            std::string reg1 = getNextReg();
+                            std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
+                            CodeBuffer::instance.emit(tmpLine);
+                            std::string reg2 = getNextReg();
+                            std::string tmpLine = reg2 + " = load i32, i32* " + reg1;
+                            $$->SetValue(reg2);
+                            CodeBuffer::instance.emit(tmpLine);
+                        }
                     }
                 } else { 
                     errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
@@ -468,33 +661,40 @@ Exp:          LPAREN Exp RPAREN {
             | NUM B { 
                 //cout << 42 << endl;
                 toDeleteList.push_back($1);
+                if (((dynamic_cast<Num*>($1)->num) < 0)) {
+                    dynamic_cast<Num*>($1)->num &= ((1 << 8) - 1) //TODO: is this mashlim Le'Two?
+                }
                 if (((dynamic_cast<Num*>($1)->num) > 255)) {
                     errorByteTooLarge(yylineno, to_string(((dynamic_cast<Num*>($1)->num))));
                     destroyOnExit();
                 } else {
                     $$ = new Byte(); 
                     toDeleteList.push_back($$);
+                    $$->setValue(std::to_string(dynamic_cast<Num*>($1)->num));
                 }
             } /* maybe need to flip */
-            | NUM { /*cout << 43 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); toDeleteList.push_back($1); }
-			| STRING {/*cout << 44 << endl;*/ $$ = new String(); toDeleteList.push_back($$); }
-			| TRUE {/*cout << 45 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
-            | FALSE { /*cout << 46 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
+            | NUM { /*cout << 43 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); toDeleteList.push_back($1); $$->setValue(std::to_string(dynamic_cast<Num*>($1)->num)); }
+			| STRING {/*cout << 44 << endl;*/ $$ = new String(); toDeleteList.push_back($$); $$->setValue(dynamic_cast<StringVal*>($1)->str); }
+			| TRUE {/*cout << 45 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); $$->setValue(std::to_string(1)); }
+            | FALSE { /*cout << 46 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); $$->setValue(std::to_string(0)); }
 			| NOT Exp {
                 //cout << 47 << endl;
                 if($2->isBool()) {
                     $$ = new Bool();
                     toDeleteList.push_back($$);
+                    $$->setTrueList($2->getFalseList());
+                    $$->setFalseList($2->getTrueList());
                 } else {
                     output::errorMismatch(yylineno);
                     destroyOnExit();
                 }
             }
-            | Exp AND Exp {
+            | Exp AND {  } Exp {
                 //cout << 48 << endl;
                 if(isBools($1, $3)) {
                     $$ = new Bool();
                     toDeleteList.push_back($$);
+                    
                 } else {
                     output::errorMismatch(yylineno);
                     destroyOnExit();
@@ -597,7 +797,7 @@ void destroyOnExit() {
 
 void endOfScope() {
     endScope();
-    cout << symbolTable.top();
+    /* cout << symbolTable.top(); */
     symbolTable.pop();
     /* endScope(); */
 }
@@ -607,6 +807,7 @@ void initialEmit() {
     CodeBuffer::instance.emit("declare void @exit(i32)");
     CodeBuffer::instance.emit("@.int_specifier = constant [4 x i8] c\"\%d\\0A\\00\"");
     CodeBuffer::instance.emit("@.str_specifier = constant [4 x i8] c\"\%s\\0A\\00\"");
+    CodeBuffer::instance.emit("@.devision_by_zero = constant [23 x i8] c\"Error devision by zero\\00\"");
     CodeBuffer::instance.emit("define void @printi(i32) {");
     CodeBuffer::instance.emit("\%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
     CodeBuffer::instance.emit("call i32 (i8*, ...) @printf(i8* \%spec_ptr, i32 %0)");
@@ -626,7 +827,8 @@ int main() {
         destroyOnExit();
     }
     endScope();
-    cout << symbolTable.top();
+    /* cout << symbolTable.top(); */
+    CodeBuffer::instance().printCodeBuffer();
     symbolTable.pop();
     destroyAll();
 }

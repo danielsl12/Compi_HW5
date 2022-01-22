@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include "bp.hpp"
 
 class Object {
 public:
@@ -21,6 +22,7 @@ public:
     virtual bool isCall() const { return false; }
     virtual bool isId() const { return false; }
     virtual bool isNum() const { return false; }
+    virtual bool isStringVal() const { return false; }
 };
 
 class TypeAnnotation : public Object {
@@ -128,6 +130,9 @@ public:
 };
 
 class Bool : public ProtoType {
+private:
+    std::vector<std::pair<int,BranchLabelIndex>> trueList;
+    std::vector<std::pair<int,BranchLabelIndex>> falseList;
 public:
     Bool() : ProtoType() {}
     explicit Bool(const TypeAnnotation& typeAnnotation);
@@ -137,6 +142,11 @@ public:
     ProtoType* clone() const override;
     std::string typeToString() const override;
     bool isBool() const override;
+
+    std::vector<std::pair<int,BranchLabelIndex>> getTrueList() const;
+    std::vector<std::pair<int,BranchLabelIndex>> getFalseList() const;
+    void setTrueList(std::vector<std::pair<int,BranchLabelIndex>>& trueList);
+    void setFalseList(std::vector<std::pair<int, BranchLabelIndex>>& falseList);
 };
 
 class String : public ProtoType {
@@ -257,6 +267,14 @@ public:
     explicit Num(int num) : num(num) {}
 
     bool isNum() const override { return true; }
+};
+
+class StringVal : public Object {
+public:
+    std::string str;
+    explicit StringVal(std::string str) : str(str) {}
+
+    bool isStringVal() const override { return true; }
 };
 
 /*
