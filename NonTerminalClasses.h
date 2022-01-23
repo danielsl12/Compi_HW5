@@ -133,6 +133,7 @@ class Bool : public ProtoType {
 private:
     std::vector<std::pair<int,BranchLabelIndex>> trueList;
     std::vector<std::pair<int,BranchLabelIndex>> falseList;
+    std::string label;
 public:
     Bool() : ProtoType() {}
     explicit Bool(const TypeAnnotation& typeAnnotation);
@@ -147,6 +148,8 @@ public:
     std::vector<std::pair<int,BranchLabelIndex>> getFalseList() const;
     void setTrueList(std::vector<std::pair<int,BranchLabelIndex>>& trueList);
     void setFalseList(std::vector<std::pair<int, BranchLabelIndex>>& falseList);
+    std::string getLabel() const;
+    void setLabel(std::string newLabel);
 };
 
 class String : public ProtoType {
