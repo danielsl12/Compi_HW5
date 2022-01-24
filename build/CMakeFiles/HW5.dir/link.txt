@@ -1,1 +1,1 @@
-/Library/Developer/CommandLineTools/usr/bin/c++  -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/HW5.dir/bp.cpp.o  -o HW5 
+/Library/Developer/CommandLineTools/usr/bin/c++  -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/HW5.dir/bp.cpp.o CMakeFiles/HW5.dir/NonTerminalClasses.cpp.o CMakeFiles/HW5.dir/SymbolTable.cpp.o  -o HW5 

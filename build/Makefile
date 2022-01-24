@@ -140,6 +140,60 @@ HW5/fast:
 	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/build
 .PHONY : HW5/fast
 
+NonTerminalClasses.o: NonTerminalClasses.cpp.o
+
+.PHONY : NonTerminalClasses.o
+
+# target to build an object file
+NonTerminalClasses.cpp.o:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/NonTerminalClasses.cpp.o
+.PHONY : NonTerminalClasses.cpp.o
+
+NonTerminalClasses.i: NonTerminalClasses.cpp.i
+
+.PHONY : NonTerminalClasses.i
+
+# target to preprocess a source file
+NonTerminalClasses.cpp.i:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/NonTerminalClasses.cpp.i
+.PHONY : NonTerminalClasses.cpp.i
+
+NonTerminalClasses.s: NonTerminalClasses.cpp.s
+
+.PHONY : NonTerminalClasses.s
+
+# target to generate assembly for a file
+NonTerminalClasses.cpp.s:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/NonTerminalClasses.cpp.s
+.PHONY : NonTerminalClasses.cpp.s
+
+SymbolTable.o: SymbolTable.cpp.o
+
+.PHONY : SymbolTable.o
+
+# target to build an object file
+SymbolTable.cpp.o:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/SymbolTable.cpp.o
+.PHONY : SymbolTable.cpp.o
+
+SymbolTable.i: SymbolTable.cpp.i
+
+.PHONY : SymbolTable.i
+
+# target to preprocess a source file
+SymbolTable.cpp.i:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/SymbolTable.cpp.i
+.PHONY : SymbolTable.cpp.i
+
+SymbolTable.s: SymbolTable.cpp.s
+
+.PHONY : SymbolTable.s
+
+# target to generate assembly for a file
+SymbolTable.cpp.s:
+	$(MAKE) -f CMakeFiles/HW5.dir/build.make CMakeFiles/HW5.dir/SymbolTable.cpp.s
+.PHONY : SymbolTable.cpp.s
+
 bp.o: bp.cpp.o
 
 .PHONY : bp.o
@@ -176,6 +230,12 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... HW5"
+	@echo "... NonTerminalClasses.o"
+	@echo "... NonTerminalClasses.i"
+	@echo "... NonTerminalClasses.s"
+	@echo "... SymbolTable.o"
+	@echo "... SymbolTable.i"
+	@echo "... SymbolTable.s"
 	@echo "... bp.o"
 	@echo "... bp.i"
 	@echo "... bp.s"

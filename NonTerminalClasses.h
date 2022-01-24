@@ -131,9 +131,11 @@ public:
 
 class Bool : public ProtoType {
 private:
+    inline static int counter = 0;
     std::vector<std::pair<int,BranchLabelIndex>> trueList;
     std::vector<std::pair<int,BranchLabelIndex>> falseList;
     std::string label;
+    static std::string genNextBool();
 public:
     Bool() : ProtoType() {}
     explicit Bool(const TypeAnnotation& typeAnnotation);
@@ -280,34 +282,34 @@ public:
     bool isStringVal() const override { return true; }
 };
 
-/*
-class FuncDecl {
-private:
-    ProtoType* retType;
-    std::string funcName;
-    std::vector<FormalDecl> args;
+class RelopRelation : public Object {
 public:
-    FuncDecl(const ProtoType& retType, const std::string& name, std::vector<FormalDecl>& args);
-    FuncDecl(const FuncDecl& other);
-    FuncDecl& operator=(FormalDecl& other);
-    ~FuncDecl();
+    std::string opSuffix;
 
-    const ProtoType& getRetType() const;
-    const std::string getFuncName() const;
-    const std::vector<FormalDecl> getArgs() const;
-
+    explicit RelopRelation(const std::string& str) : opSuffix() {
+        if (str == ">") {
+            this->opSuffix = "gt";
+        } else if(str == ">=") {
+            this->opSuffix = "ge";
+        } else if(str == "<") {
+            this->opSuffix = "lt";
+        } else if(str == "<=") {
+            this->opSuffix = "le";
+        }
+    }
 };
- */
 
-//class Statement {
-//private:
-//    ProtoType* type;
-//public:
-//    Statement(ProtoType& type);
-//    Statement(const Statement& other);
-//    Statement& operator=(const Statement& other);
-//    ~Statement();
-//    ProtoType& getType() const;
-//};
+class RelopEq : public Object {
+public:
+    std::string op;
+
+    explicit RelopEq(const std::string& op) : op() {
+        if(op == "==") {
+            this->op = "eq";
+        } else if(op == "!=") {
+            this->op = "ne";
+        }
+    }
+};
 
 #endif //HW3_NONTERMINALCLASSES_H

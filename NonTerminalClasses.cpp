@@ -284,6 +284,29 @@ std::string Bool::typeToString() const {
 
 bool Bool::isBool() const {return true;}
 
+std::string Bool::genNextBool() {
+    std::string str = "%b" + std::to_string(counter++);
+    return str;
+}
+
+std::string Bool::getValue() {
+    string labT = CodeBuffer::instance().genLabel();
+    CodeBuffer::instance().bpatch(this->trueList, labT);
+    int loc1 = CodeBuffer::instance().emit("br label @");
+    string labF = CodeBuffer::instance().genLabel();
+    CodeBuffer::instance().bpatch(this->falseList, labF);
+    int loc2 = CodeBuffer::instance().emit("br label @");
+    string finalLab = CodeBuffer::instance().genLabel();
+    string reg = genNextBool();
+    string tmpLine = reg + " = phi i1 [ 1, " + labT + " ], [ 0, " + labF + " ]";
+    CodeBuffer::instance().emit(tmpLine);
+    vector<pair<int,BranchLabelIndex>> list1 = CodeBuffer::makelist(std::make_pair(loc1, BranchLabelIndex::FIRST));
+    vector<pair<int,BranchLabelIndex>> list2 = CodeBuffer::makelist(std::make_pair(loc2, BranchLabelIndex::FIRST));
+    CodeBuffer::instance().bpatch(CodeBuffer::merge(list1, list2), finalLab);
+    this->setValue(reg);
+    return reg;
+}
+
 /* ******************** */
 
 String::String(const TypeAnnotation& typeAnnotation) : ProtoType(typeAnnotation) {}

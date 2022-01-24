@@ -17,6 +17,7 @@ whitespace                                      ([\t\n\r ])
 void                                            return VOID;
 int                                             return INT;
 byte                                            return BYTE;
+string                                          return STRING_TYPE;
 b                                               return B;
 bool                                            return BOOL;
 const                                           return CONST;
@@ -38,8 +39,8 @@ continue                                        return CONTINUE;
 \{                                              return LBRACE;
 \}                                              return RBRACE;
 =                                               return ASSIGN;
-([!=]=)                                         return RELOP_EQ;
-((([<>])=)|<|>)                                 return RELOP_RELATION;
+([!=]=)                                         yylval = new RelopEq(yytext); return RELOP_EQ;
+((([<>])=)|<|>)                                 yylval = new RelopRelation(yytext); return RELOP_RELATION;
 +                                               return PLUS;
 -                                               return MINUS;
 /*([-\+])                                         return PLUS_MINUS;*/

@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/HW5.dir/NonTerminalClasses.cpp.o"
+  "CMakeFiles/HW5.dir/SymbolTable.cpp.o"
   "CMakeFiles/HW5.dir/bp.cpp.o"
   "HW5"
   "HW5.pdb"
