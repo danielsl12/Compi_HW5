@@ -7,7 +7,10 @@
 #include "bp.hpp"
 
 class Object {
+protected:
+    std::string value;
 public:
+    explicit Object(string value = "") : value(value) {}
     virtual bool isTypeAnnotation() const { return false; }
     virtual bool isFunc() const { return false; }
     virtual bool isInt() const { return false; }
@@ -23,6 +26,9 @@ public:
     virtual bool isId() const { return false; }
     virtual bool isNum() const { return false; }
     virtual bool isStringVal() const { return false; }
+
+    virtual std::string getValue() { return this->value; }
+    virtual void setValue(std::string newValue) { this->value = newValue; }
 };
 
 class TypeAnnotation : public Object {
@@ -38,15 +44,15 @@ public:
 
 class ProtoType : public Object {
 protected:
-    bool isConst;
+    bool isConst, isLiteral;
 //    bool isFunc, isInt, isByte, isBool;
 
-    std::string value;
+//    std::string value;
 
 public:
 //    enum Type { INT, BYTE, BOOL };
-    ProtoType() : isConst(false), value("") {}
-    explicit ProtoType(TypeAnnotation typeAnnotation);
+    explicit ProtoType(bool isLiteral=false) : Object(), isConst(false), isLiteral(isLiteral) {}
+    explicit ProtoType(TypeAnnotation typeAnnotation, bool isLiteral = false);
 //    ProtoType(Type type);
 //    ProtoType(const TypeAnnotation& typeAnnotation, bool isFunc, bool,);
     ProtoType(const ProtoType& type);
@@ -74,8 +80,8 @@ public:
     //Only Func should implement, the others have empty implementaion
     virtual ProtoType& getReturnType() const;
     virtual bool compareArgs(const std::vector<ProtoType*>& args);
-    std::string getValue() { return this->value; }
-    void setValue(std::string newValue) { this->value = newValue; }
+//    virtual std::string getValue() override { return this->value; }
+//    virtual void setValue(std::string newValue) override { this->value = newValue; }
 };
 
 class Void : public ProtoType {
@@ -91,8 +97,8 @@ public:
 
 class Int : public ProtoType {
 public:
-    Int() : ProtoType() {}
-    explicit Int(TypeAnnotation typeAnnotation);
+    explicit Int(bool isLiteral = false) : ProtoType(isLiteral) {}
+    explicit Int(TypeAnnotation typeAnnotation, bool isLiteral = false);
     Int(const Int& other);
     Int& operator=(const Int& other);
     ~Int() override = default;
@@ -103,8 +109,8 @@ public:
 
 class Byte : public ProtoType {
 public:
-    Byte() : ProtoType() {}
-    explicit Byte(TypeAnnotation typeAnnotation);
+    explicit Byte(bool isLiteral = false) : ProtoType(isLiteral) {}
+    explicit Byte(TypeAnnotation typeAnnotation, bool isLiteral = false);
     Byte(const Byte& other);
     Byte& operator=(const Byte& other);
     ~Byte() override = default;
@@ -143,8 +149,8 @@ private:
     std::string label;
     static std::string genNextBool();
 public:
-    Bool() : ProtoType() {}
-    explicit Bool(const TypeAnnotation& typeAnnotation);
+    explicit Bool(BoolType bType = OTHER, bool isLiteral=false) : ProtoType(isLiteral), boolType(bType), trueList(), falseList(), label() {}
+    explicit Bool(const TypeAnnotation& typeAnnotation, BoolType bType = OTHER, bool isLiteral = false);
     Bool(const Bool& other);
     Bool& operator=(const Bool& other);
     ~Bool() override = default;
@@ -158,6 +164,9 @@ public:
     void setFalseList(std::vector<std::pair<int, BranchLabelIndex>>& falseList);
     std::string getLabel() const;
     void setLabel(std::string newLabel);
+
+    std::string getValue() override;
+//    void setValue(std::string newValue) override;
 };
 
 class String : public ProtoType {
@@ -208,8 +217,8 @@ class Call : public Object {
 private:
     ProtoType* funcRetType;
 public:
-    Call() : funcRetType(nullptr) {}
-    explicit Call(const ProtoType& retType) : funcRetType(retType.clone()) {}
+    Call() : Object(), funcRetType(nullptr) {}
+    explicit Call(const ProtoType& retType) : Object(), funcRetType(retType.clone()) {}
     Call(const Call& other);
     Call& operator=(const Call& other);
     ~Call();

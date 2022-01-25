@@ -59,7 +59,7 @@ public:
     ProtoType& getIdType(const std::string& id) const;
     bool addParameters(const Formals& parameters, int lineno);
     int getAbsoluteOffset(const std::string& id);
-    void setValueById(const std::string& id);
+    void setValueById(const std::string& id, std::string& value);
     string getValueById(const std::string& id);
 
 };

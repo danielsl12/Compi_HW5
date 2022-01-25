@@ -2,9 +2,9 @@
 #include "hw3_output.hpp"
 #include <iostream>
 
-ProtoType::ProtoType(TypeAnnotation typeAnnotation) : isConst(typeAnnotation.getIsConst()) {}
+ProtoType::ProtoType(TypeAnnotation typeAnnotation, bool isLiteral) : Object(), isConst(typeAnnotation.getIsConst()), isLiteral(isLiteral) {}
 
-ProtoType::ProtoType(const ProtoType& type) : isConst(type.isConst) {}
+ProtoType::ProtoType(const ProtoType& type) : Object(type.value), isConst(type.isConst), isLiteral(type.isLiteral) {}
 
 ProtoType& ProtoType::operator=(const ProtoType& type) {
     if (this == &type) {
@@ -13,6 +13,7 @@ ProtoType& ProtoType::operator=(const ProtoType& type) {
 
     this->value = type.value;
     this->isConst = type.isConst;
+    this->isLiteral = type.isLiteral;
     return *this;
 }
 
@@ -30,6 +31,12 @@ bool ProtoType::compareArgs(const std::vector<ProtoType*>& args) { return false;
 
 bool ProtoType::operator==(const ProtoType& other) const {
     if(this->isConst != other.isConst)
+        return false;
+
+    if(this->isLiteral != other.isLiteral)
+        return false;
+
+    if(this->value != other.value)
         return false;
 
     if(this->isBool() && other.isBool())
@@ -68,6 +75,8 @@ Void& Void::operator=(const Void& other) {
     }
 
     this->isConst = other.isConst;
+    this->value = other.value;
+    this->isLiteral = other.isLiteral;
     return *this;
 }
 
@@ -85,9 +94,11 @@ bool Void::isVoid() const {
 
 /* ******************** */
 
-Int::Int(TypeAnnotation typeAnnotation) : ProtoType(typeAnnotation) {}
+Int::Int(TypeAnnotation typeAnnotation, bool isLiteral) : ProtoType(typeAnnotation, isLiteral) {}
 
-Int::Int(const Int& other) : ProtoType(TypeAnnotation(other.isConst)) {}
+Int::Int(const Int& other) : ProtoType(TypeAnnotation(other.isConst), other.isLiteral) {
+    this->value = other.value;
+}
 
 Int& Int::operator=(const Int& other) {
     if (this == &other) {
@@ -95,11 +106,15 @@ Int& Int::operator=(const Int& other) {
     }
 
     this->isConst = other.isConst;
+    this->value = other.value;
+    this->isLiteral = other.isLiteral;
     return *this;
 }
 
 ProtoType* Int::clone() const {
-    return new Int(TypeAnnotation(this->isConst));
+    Int* i = new Int(TypeAnnotation(this->isConst), this->isLiteral);
+    i->setValue(this->value);
+    return i;
 }
 
 std::string Int::typeToString() const {
@@ -112,9 +127,11 @@ bool Int::isInt() const {
 
 /* ******************** */
 
-Byte::Byte(TypeAnnotation typeAnnotation) : ProtoType(typeAnnotation) {}
+Byte::Byte(TypeAnnotation typeAnnotation, bool isLiteral) : ProtoType(typeAnnotation, isLiteral) {}
 
-Byte::Byte(const Byte& other) : ProtoType(TypeAnnotation(other.isConst)) {}
+Byte::Byte(const Byte& other) : ProtoType(TypeAnnotation(other.isConst), other.isLiteral) {
+    this->value = other.value;
+}
 
 Byte& Byte::operator=(const Byte& other) {
     if (this == &other) {
@@ -348,7 +365,9 @@ std::string Bool::getValue() {
 
 String::String(const TypeAnnotation& typeAnnotation) : ProtoType(typeAnnotation) {}
 
-String::String(const String& other) : ProtoType(TypeAnnotation(other.isConst)) {}
+String::String(const String& other) : ProtoType(TypeAnnotation(other.isConst)) {
+    this->value = other.value;
+}
 
 String& String::operator=(const String& other) {
     if (this == &other) {
@@ -356,11 +375,14 @@ String& String::operator=(const String& other) {
     }
 
     this->isConst = other.isConst;
+    this->value = other.value;
     return *this;
 }
 
 ProtoType* String::clone() const {
-    return new String(TypeAnnotation(this->isConst));
+    String* s = new String(TypeAnnotation(this->isConst));
+    s->setValue(this->value);
+    return s;
 }
 
 std::string String::typeToString() const {
