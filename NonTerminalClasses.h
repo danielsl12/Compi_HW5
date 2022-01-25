@@ -67,6 +67,10 @@ public:
     bool getIsConst() { return this->isConst; }
     bool operator==(const ProtoType& other) const;
 
+    bool getIsLiteral() const;
+
+    void setIsLiteral(bool isLit);
+
     //Only Func should implement, the others have empty implementaion
     virtual ProtoType& getReturnType() const;
     virtual bool compareArgs(const std::vector<ProtoType*>& args);
@@ -131,7 +135,9 @@ public:
 
 class Bool : public ProtoType {
 private:
+    enum BoolType {TRUE, FALSE, OTHER};
     inline static int counter = 0;
+    BoolType boolType;
     std::vector<std::pair<int,BranchLabelIndex>> trueList;
     std::vector<std::pair<int,BranchLabelIndex>> falseList;
     std::string label;

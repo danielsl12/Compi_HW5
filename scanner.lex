@@ -17,7 +17,6 @@ whitespace                                      ([\t\n\r ])
 void                                            return VOID;
 int                                             return INT;
 byte                                            return BYTE;
-string                                          return STRING_TYPE;
 b                                               return B;
 bool                                            return BOOL;
 const                                           return CONST;

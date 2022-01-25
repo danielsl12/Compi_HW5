@@ -58,7 +58,6 @@ extern int yylex();
 %token ID
 %token NUM
 %token STRING
-%token STRING_TYPE
 
 /* -----operators----- */
 %token ASSIGN
@@ -107,16 +106,7 @@ Program: {
             //  cout << 2 << endl;
           };
 Funcs: FuncDecl Funcs //{ cout << 2 << "a" << endl; } //maybe need to flip
-            | STRING_TYPE ID ASSIGN STRING SC Funcs { 
-                cout << 2 << "b" << endl;
-                string varName = getNextGlobal();
-                int strLen = dynamic_cast<StringVal>($4)->str.length() + 1; //because we want \00 in the end
-                string line = varName + " = constant [" + std::to_string(strLen) + " x i8] c\"" + dynamic_cast<StringVal>($4)->str + "\00\""; 
-                globalDict[varName] = strLen;
-                CodeBuffer::emitGlobal(line);
-                symbolTable.insertAtTop(dynamic_cast<Id*>($2)->id, String(TypeAnnotation(true)));
-                symbolTable.setValueById((dynamic_cast<Id*>($2)->id), varName);
-            }
+            | 
 ;
 FuncDecl: RetType ID LPAREN Formals RPAREN {
                 // cout << 3 << endl;
@@ -164,7 +154,7 @@ FuncDecl: RetType ID LPAREN Formals RPAREN {
                 CodeBuffer::instance().emit("}");
           }
 ;
-RetType:      Type { $$ = $1; } //cout << 5 << endl;}
+RetType:      Type { $$ = $1; $$->setIsLiteral(false); } //cout << 5 << endl;}
             | VOID { $$ = new Void(); toDeleteList.push_back($$); } //cout << 6 << endl;}
 ;
 Formals:     FormalsList {/*cout << 7 << endl;*/ $$ = new Formals(*(dynamic_cast<FormalsList*>($1))); toDeleteList.push_back($$); }
@@ -372,28 +362,28 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     std::string reg1 = getNextReg();
                     std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
                     CodeBuffer::instance().emit(tmpLine);
+                    /*
                     if(isRegister(value)) {
                         std::line = "store i32 " + value + ", i32* " + reg1;
                         CodeBuffer::instance().emit(line);
+                    } else { */
+                    if(dynamic_cast<TypeAnnotation*>($1)->getIsConst() && dynamic_cast<ProtoType*>($5)->getIsLiteral()) { //TODO: Add flag and value for const in SymbolTableEntry! and setting and getting this value in SymbolTable by id
+                        symbolTable.setValueById((dynamic_cast<Id*>($3)->id), value);
                     } else {
-                        if(dynamic_cast<TypeAnnotation*>($1)->getIsConst()) { //TODO: Add flag and value for const in SymbolTableEntry! and setting and getting this value in SymbolTable by id
-                            symbolTable.setValueById((dynamic_cast<Id*>($3)->id), value);
+                        if ($5->isBool()) {
+                            std::string reg2 = getNextReg();
+                            tmpLine = reg2 + " = zext i1 " + value + " to i32";
+                            CodeBuffer::instance().emit(tmpLine);
+                        } else if ($5->isByte()) {
+                            std::string reg2 = getNextReg();
+                            tmpLine = reg2 + " = zext i8 " + value + " to i32";
+                            CodeBuffer::instance().emit(tmpLine);
                         } else {
-                            if ($5->isBool()) {
-                                std::string reg2 = getNextReg();
-                                tmpLine = reg2 + " = zext i1 " + value + " to i32";
-                                CodeBuffer::instance().emit(tmpLine);
-                            } else if ($5->isByte()) {
-                                std::string reg2 = getNextReg();
-                                tmpLine = reg2 + " = zext i8 " + value + " to i32";
-                                CodeBuffer::instance().emit(tmpLine);
-                            } else {
-                                std::string reg2 = value;
-                            }
-                            std::string line = "store i32 " + reg2 + ", i32* " + reg1;
-                            CodeBuffer::instance().emit(line);
-                        }   
-                    }
+                            std::string reg2 = value;
+                        }
+                        std::string line = "store i32 " + reg2 + ", i32* " + reg1;
+                        CodeBuffer::instance().emit(line);
+                    }   
                 } else {
                     errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
                     destroyOnExit();
@@ -545,7 +535,7 @@ Call:         ID LPAREN ExpList RPAREN {
                                     ret = "void";
                                 }
                                 string reg = callNextReg();
-                                string line = reg + " = call" + ret + " @" + dynamic_cast<Id*>($1)->id + " (" + toLlvmArgs(dynamic_cast<ExpList*>($3)->getExpList()) +")";
+                                string line = reg + " = call" + ret + " @" + dynamic_cast<Id*>($1)->id + "(" + toLlvmArgs(dynamic_cast<ExpList*>($3)->getExpList()) +")";
                                 CodeBuffer::instance().emit(line);
                                 $$->setValue(reg);
                             }
@@ -610,6 +600,7 @@ TypeAnnotation:  CONST { /*cout << 35 << endl;*/ $$ = new TypeAnnotation(true); 
 Exp:          LPAREN Exp RPAREN {
                 //cout << 37 << endl;
                 $$ = $2;  //TODO: check if need to assign $2's lists to $$
+                $$->setIsLiteral(false);
             }
             | Exp PRODUCT Exp {
                 //cout << 38 << endl;
@@ -820,7 +811,7 @@ Exp:          LPAREN Exp RPAREN {
                         destroyOnExit();
                     } else {
                         $$ = &type;
-                        if($1->getIsConst()) {
+                        if($1->getIsConst() && type->getIsLiteral()) {
                             dynamic_cast<ProtoType*>($$)->setValue(symbolTable.getValueById(dynamic_cast<Id*>($1)->id));
                         } else {
                             int idOffset = symbolTable.getAbsoluteOffset(dynamic_cast<Id*>($1)->id);
@@ -858,18 +849,18 @@ Exp:          LPAREN Exp RPAREN {
                 //cout << 42 << endl;
                 toDeleteList.push_back($1);
                 if (((dynamic_cast<Num*>($1)->num) < 0)) {
-                    dynamic_cast<Num*>($1)->num &= ((1 << 8) - 1) //TODO: is this mashlim Le'Two?
+                    dynamic_cast<Num*>($1)->num &= ((1 << 8) - 1) //TODO: is this mashlim Le'Two? (8-bit)
                 }
                 if (((dynamic_cast<Num*>($1)->num) > 255)) {
                     errorByteTooLarge(yylineno, to_string(((dynamic_cast<Num*>($1)->num))));
                     destroyOnExit();
                 } else {
-                    $$ = new Byte(); 
+                    $$ = new Byte(true); 
                     toDeleteList.push_back($$);
                     dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num));
                 }
             } /* maybe need to flip */
-            | NUM { /*cout << 43 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); toDeleteList.push_back($1); dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num)); }
+            | NUM { /*cout << 43 << endl;*/ $$ = new Int(true); toDeleteList.push_back($$); toDeleteList.push_back($1); dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num)); }
 			| STRING {
                 /*cout << 44 << endl;*/ 
                 $$ = new String(); 
@@ -883,7 +874,7 @@ Exp:          LPAREN Exp RPAREN {
             }
 			| TRUE {
                 /*cout << 45 << endl;*/ 
-                $$ = new Bool(); 
+                $$ = new Bool(BoolType::TRUE, true); 
                 toDeleteList.push_back($$); 
                 dynamic_cast<ProtoType*>($$)->setValue(std::to_string(1)); 
                 int place = CodeBuffer::instance().emit("br i1 true label @, label @");
@@ -892,7 +883,7 @@ Exp:          LPAREN Exp RPAREN {
             }
             | FALSE { 
                 /*cout << 46 << endl;*/ 
-                $$ = new Bool(); 
+                $$ = new Bool(BoolType::FALSE, true); 
                 toDeleteList.push_back($$); 
                 dynamic_cast<ProtoType*>($$)->setValue(std::to_string(0));
                 int place = CodeBuffer::instance().emit("br i1 false label @, label @");
@@ -1095,6 +1086,65 @@ void endOfScope() {
     /* cout << symbolTable.top(); */
     symbolTable.pop();
     /* endScope(); */
+}
+
+bool isRegister(std::string val) {
+    return (val[0] == '%' || val[0] == '@');
+}
+
+std::string toLlvmTypes(std::vector<ProtoType*> types) {
+    string str = "";
+    int len = types.size();
+    for(int i = 0; i < len - 1; ++i) {
+        if(types[i]->isBool()) {
+            str += "i1, ";
+        } else if(types[i]->isByte()) {
+            str += "i8, ";
+        } else if(types[i]->isInt()) {
+            str += "i32, ";
+        }
+    }
+    if(types[len - 1]->isBool()) {
+        str += "i1";
+    } else if(types[i]->isByte()) {
+        str += "i8";
+    } else if(types[i]->isInt()) {
+        str += "i32";
+    }
+    return str;
+}
+
+std::string toLlvmArgs(std::vector<ProtoType*> types) {
+    string str = "";
+    int len = types.size();
+    for(int i = 0; i < len - 1; ++i) {
+        if(types[i]->isBool()) {
+            str += "i1 " + types[i]->getValue() + ", "; //dont need dynamic cast because getValue is in Object
+        } else if(types[i]->isByte()) {
+            str += "i8 " + types[i]->getValue + ", ";
+        } else if(types[i]->isInt()) {
+            str += "i32 " + types[i]->getValue + ", ";
+        }
+    }
+    if(types[len - 1]->isBool()) {
+        str += "i1" + types[i]->getValue;
+    } else if(types[i]->isByte()) {
+        str += "i8" + types[i]->getValue;
+    } else if(types[i]->isInt()) {
+        str += "i32" + types[i]->getValue;
+    }
+    return str;
+}
+
+std::string getNextReg() {
+    string name = "%t";
+    name += std::to_string(counter++)
+    return name;
+}
+
+std::string getNextGlobal() {
+    string name = "@.g";
+    return name + std::to_string(counter++);
 }
 
 void initialEmit() {

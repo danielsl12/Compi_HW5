@@ -27,6 +27,14 @@ int Symbol::getOffset() const {
 
 Symbol::Symbol(const Symbol &sym) : name(sym.getName()), type(sym.type->clone()), offset(sym.offset) {}
 
+void Symbol::setValue(std::string value) {
+    this->value = value;
+}
+
+std::string Symbol::getValue() {
+    return this->value;
+}
+
 std::ostream& operator<< (std::ostream &os, const Symbol &symbol) {
     std::string space(" ");
     std::string type = symbol.getType().typeToString();
@@ -139,15 +147,61 @@ bool SymbolTable::addParameters(const Formals &parameters, int lineno) {
     std::vector<std::string> names = parameters.getNames();
     std::vector<ProtoType*> types = parameters.getTypes();
     unsigned long len = names.size();
+    int count = 0;
     for (unsigned long i = 0; i < len; ++i) {
         if(this->findId(names[i])) {
             output::errorDef(lineno, names[i]);
             return true;
         }
+        types[i]->setConst(true);
         this->insertAtTop(names[i], *(types[i]), true);
+        std::string val = "%";
+        val += std::to_string(count);
+        this->setValueById(names[i], val);
     }
     return false;
 }
+
+int SymbolTable::getAbsoluteOffset(const string &id) {
+    int offset = 0;
+    bool isFound = false;
+    for (const SymbolTableEntry& entry : *this) {
+        if(!isFound) {
+            for (const Symbol &sym : entry) {
+                if (sym.getName() == id) {
+                    isFound = true;
+                    offset += sym.getOffset();
+                }
+            }
+        } else {
+            offset += entry.getLastOffset() == -1 ? 0 : entry.getLastOffset();
+        }
+    }
+    return offset;
+}
+
+void SymbolTable::setValueById(const string &id, std::string& value) {
+    for (SymbolTableEntry& entry: *this) {
+        for (Symbol& sym: entry) {
+            if(sym.getName() == id) {
+                sym.setValue(value);
+                return;
+            }
+        }
+    }
+}
+
+string SymbolTable::getValueById(const string &id) {
+    for (SymbolTableEntry& entry: *this) {
+        for (Symbol& sym: entry) {
+            if(sym.getName() == id) {
+                return sym.getValue();
+            }
+        }
+    }
+    return ""; //
+}
+
 
 int SymbolTableEntry::getLastOffset() const {
     return this->lastOffset;

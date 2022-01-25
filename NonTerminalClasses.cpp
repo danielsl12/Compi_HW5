@@ -11,6 +11,7 @@ ProtoType& ProtoType::operator=(const ProtoType& type) {
         return *this;
     }
 
+    this->value = type.value;
     this->isConst = type.isConst;
     return *this;
 }
@@ -46,6 +47,14 @@ bool ProtoType::operator==(const ProtoType& other) const {
 }
 
 bool ProtoType::compareArgs() const { return false;}
+
+bool ProtoType::getIsLiteral() const {
+    return this->isLiteral;
+}
+
+void ProtoType::setIsLiteral(bool isLit) {
+    this->isLiteral = isLit;
+}
 
 /* ******************** */
 
@@ -113,11 +122,15 @@ Byte& Byte::operator=(const Byte& other) {
     }
 
     this->isConst = other.isConst;
+    this->isLiteral = other.isLiteral;
+    this->value = other.value;
     return *this;
 }
 
 ProtoType* Byte::clone() const {
-    return new Byte(TypeAnnotation(this->isConst));
+    Byte* b = new Byte(TypeAnnotation(this->isConst), this->isLiteral);
+    b->setValue(this->value);
+    return b;
 }
 
 std::string Byte::typeToString() const {
@@ -261,9 +274,11 @@ bool Func::compareArgs() const {
 
 /* ******************** */
 
-Bool::Bool(const TypeAnnotation& typeAnnotation) : ProtoType(typeAnnotation) {}
+Bool::Bool(const TypeAnnotation& typeAnnotation, BoolType bType, bool isLiteral) : ProtoType(typeAnnotation, isLiteral), boolType(bType) {}
 
-Bool::Bool(const Bool& other) : ProtoType(TypeAnnotation(other.isConst)) {}
+Bool::Bool(const Bool& other) : ProtoType(TypeAnnotation(other.isConst), other.isLiteral), boolType(other.boolType), trueList(other.trueList), falseList(other.falseList), label(other.label) {
+    this->value = other.value;
+}
 
 Bool& Bool::operator=(const Bool& other) {
     if (this == &other) {
@@ -271,11 +286,19 @@ Bool& Bool::operator=(const Bool& other) {
     }
 
     this->isConst = other.isConst;
+    this->boolType = other.boolType;
+    this->value = other.value;
+    this->label = other.label;
+    this->isLiteral = other.isLiteral;
+    this->falseList = other.falseList;
+    this->trueList = other.trueList;
     return *this;
 }
 
 ProtoType* Bool::clone() const {
-    return new Bool(TypeAnnotation(this->isConst));
+    Bool* b = new Bool(TypeAnnotation(this->isConst), this->boolType, this->isLiteral);
+    b->value = this->value;
+    return b;
 }
 
 std::string Bool::typeToString() const {
@@ -290,21 +313,35 @@ std::string Bool::genNextBool() {
 }
 
 std::string Bool::getValue() {
-    string labT = CodeBuffer::instance().genLabel();
-    CodeBuffer::instance().bpatch(this->trueList, labT);
-    int loc1 = CodeBuffer::instance().emit("br label @");
-    string labF = CodeBuffer::instance().genLabel();
-    CodeBuffer::instance().bpatch(this->falseList, labF);
-    int loc2 = CodeBuffer::instance().emit("br label @");
-    string finalLab = CodeBuffer::instance().genLabel();
-    string reg = genNextBool();
-    string tmpLine = reg + " = phi i1 [ 1, " + labT + " ], [ 0, " + labF + " ]";
-    CodeBuffer::instance().emit(tmpLine);
-    vector<pair<int,BranchLabelIndex>> list1 = CodeBuffer::makelist(std::make_pair(loc1, BranchLabelIndex::FIRST));
-    vector<pair<int,BranchLabelIndex>> list2 = CodeBuffer::makelist(std::make_pair(loc2, BranchLabelIndex::FIRST));
-    CodeBuffer::instance().bpatch(CodeBuffer::merge(list1, list2), finalLab);
-    this->setValue(reg);
-    return reg;
+    if(this->boolType == OTHER) {
+        string labT = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch(this->trueList, labT);
+        int loc1 = CodeBuffer::instance().emit("br label @");
+        string labF = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch(this->falseList, labF);
+        int loc2 = CodeBuffer::instance().emit("br label @");
+        string finalLab = CodeBuffer::instance().genLabel();
+        string reg = genNextBool();
+        string tmpLine = reg + " = phi i1 [ true, " + labT + " ], [ false, " + labF + " ]";
+        CodeBuffer::instance().emit(tmpLine);
+        vector<pair<int, BranchLabelIndex>> list1 = CodeBuffer::makelist(std::make_pair(loc1, BranchLabelIndex::FIRST));
+        vector<pair<int, BranchLabelIndex>> list2 = CodeBuffer::makelist(std::make_pair(loc2, BranchLabelIndex::FIRST));
+        CodeBuffer::instance().bpatch(CodeBuffer::merge(list1, list2), finalLab);
+        this->setValue(reg);
+        return reg;
+    } else {
+        string labT = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch(this->trueList, labT);
+        string labF = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch(this->falseList, labF);
+        if(this->boolType == TRUE) {
+            this->setValue("true");
+            return this->value;
+        } else {
+            this->setValue("false");
+            return this->value;
+        }
+    }
 }
 
 /* ******************** */
@@ -366,7 +403,9 @@ std::vector<std::string> ExpList::getStrList() {
 
 /* ******************** */
 
-Call::Call(const Call& other) : funcRetType(other.funcRetType->clone()) {}
+Call::Call(const Call& other) : funcRetType(other.funcRetType->clone()) {
+    this->value = other.value;
+}
 
 Call& Call::operator=(const Call& other) {
     if(this == &other) {
@@ -375,6 +414,7 @@ Call& Call::operator=(const Call& other) {
 
     delete this->funcRetType;
     this->funcRetType = other.funcRetType->clone();
+    this->value = other.value;
 
     return *this;
 }

@@ -10,6 +10,7 @@
 class Symbol {
 private:
     const std::string name;
+    std::string value;
     ProtoType* type;
     int offset;
 public:
@@ -20,6 +21,8 @@ public:
     const std::string& getName() const;
     ProtoType& getType() const ;
     int getOffset() const;
+    void setValue(std::string value);
+    std::string getValue();
 };
 
 std::ostream& operator<< (std::ostream &os, const Symbol &symbol);
