@@ -7,7 +7,7 @@
 using namespace std;
 
 
-Symbol::Symbol(const std::string& name, const ProtoType& type, int offset) : name(name), type(type.clone()), offset(offset) {} //check that string and type dont die after scope ends
+Symbol::Symbol(const std::string& name, const ProtoType& type, int offset) : name(name), type(type.clone()), offset(offset), value() {} //check that string and type dont die after scope ends
 
 Symbol::~Symbol() {
     delete this->type;
@@ -25,13 +25,16 @@ int Symbol::getOffset() const {
     return this->offset;
 }
 
-Symbol::Symbol(const Symbol &sym) : name(sym.getName()), type(sym.type->clone()), offset(sym.offset) {}
+Symbol::Symbol(const Symbol &sym) : name(sym.getName()), type(sym.type->clone()), offset(sym.offset), value(sym.value) {}
 
 void Symbol::setValue(std::string value) {
+    //cout << "this is setValue :) setting value of " << value << endl;
     this->value = value;
+    //cout << "new value is now " << this->value << endl;
 }
 
 std::string Symbol::getValue() {
+    //cout << "this is getValue :) returning the value of " << this->value << endl;
     return this->value;
 }
 
@@ -148,6 +151,7 @@ bool SymbolTable::addParameters(const Formals &parameters, int lineno) {
     std::vector<ProtoType*> types = parameters.getTypes();
     unsigned long len = names.size();
     int count = 0;
+    string val;
     for (unsigned long i = 0; i < len; ++i) {
         if(this->findId(names[i])) {
             output::errorDef(lineno, names[i]);
@@ -157,10 +161,18 @@ bool SymbolTable::addParameters(const Formals &parameters, int lineno) {
         types[i]->setConst(true);
         types[i]->setIsLiteral(true);
         this->insertAtTop(names[i], *(types[i]), true);
-        std::string val = "%";
-        val += std::to_string(count++);
+        val = "%";
+        val += std::to_string(count);
+        count++;
         this->setValueById(names[i], val);
+
+        //cout << "for Daniel: " << this->getValueById(names[i]) << endl;
     }
+    /*
+    for(int i = 0; i < len; i++) {
+        cout << "value of " << names[i] << " is " << this->getValueById(names[i]) << endl;
+    }
+    */
     return false;
 }
 
@@ -182,24 +194,27 @@ int SymbolTable::getAbsoluteOffset(const string &id) {
     return offset;
 }
 
-void SymbolTable::setValueById(const string &id, std::string& value) {
+void SymbolTable::setValueById(const string id, std::string value) {
     for (SymbolTableEntry& entry: *this) {
         for (Symbol& sym: entry) {
             if(sym.getName() == id) {
-                cout << "found id " << id << " and gave it value " << value << endl;
+                //cout << "found id " << id << " and gave it value " << value << endl;
                 sym.setValue(value);
-                cout << "new value of sym: " << sym.getValue() << endl;
+                //cout << "new value of sym: " << sym.getValue() << endl;
                 return;
             }
         }
     }
 }
 
-string SymbolTable::getValueById(const string &id) {
+string SymbolTable::getValueById(const string id) {
     for (SymbolTableEntry& entry: *this) {
         for (Symbol& sym: entry) {
             if(sym.getName() == id) {
-                return sym.getValue();
+                //cout << "found id " << id << endl;
+                string val = sym.getValue();
+                //cout << "returning value of sym: " << val << endl;
+                return val;
             }
         }
     }

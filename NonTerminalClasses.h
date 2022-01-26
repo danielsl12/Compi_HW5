@@ -207,8 +207,8 @@ private:
     std::vector<ProtoType*> expList;
 public:
     ExpList() : expList(std::vector<ProtoType*>()) {}
-    ExpList(const ProtoType& firstExp, const std::vector<ProtoType*>& list);
-    explicit ExpList(const ProtoType& exp);
+    ExpList(ProtoType& firstExp, const std::vector<ProtoType*>& list);
+    explicit ExpList(ProtoType& exp);
     ~ExpList();
 
     std::vector<ProtoType*>& getExpList(); //TODO: maybe no need for reference

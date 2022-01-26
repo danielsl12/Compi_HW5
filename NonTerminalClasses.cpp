@@ -348,7 +348,7 @@ std::string Bool::getValue() {
         int loc2 = CodeBuffer::instance().emit("br label @");
         string finalLab = CodeBuffer::instance().genLabel();
         string reg = genNextBool();
-        string tmpLine = reg + " = phi i1 [ true, " + labT + " ], [ false, " + labF + " ]";
+        string tmpLine = reg + " = phi i1 [ true, %" + labT + " ], [ false, %" + labF + " ]";
         CodeBuffer::instance().emit(tmpLine);
         vector<pair<int, BranchLabelIndex>> list1 = CodeBuffer::makelist(std::make_pair(loc1, BranchLabelIndex::FIRST));
         vector<pair<int, BranchLabelIndex>> list2 = CodeBuffer::makelist(std::make_pair(loc2, BranchLabelIndex::FIRST));
@@ -429,13 +429,16 @@ bool String::isString() const {
 
 /* ******************** */
 
-ExpList::ExpList(const ProtoType& firstExp, const std::vector<ProtoType*>& list) {
+ExpList::ExpList(ProtoType& firstExp, const std::vector<ProtoType*>& list) {
+    for(int i = 0; i < list.size(); i++) {
+        this->expList.push_back(list[i]->clone()); 
+    }
+    firstExp.getValue();
     this->expList.push_back(firstExp.clone());
-    for(int i = 0; i < list.size(); i++)
-        this->expList.push_back(list[i]->clone());
 }
 
-ExpList::ExpList(const ProtoType& exp) {
+ExpList::ExpList(ProtoType& exp) {
+    exp.getValue();
     this->expList.push_back(exp.clone());
 }
 

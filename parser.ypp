@@ -126,6 +126,7 @@ FuncDecl: RetType ID LPAREN Formals RPAREN {
                     if(symbolTable.addParameters(*(dynamic_cast<Formals*>($4)), yylineno)) {
                         destroyOnExit();
                     }
+                    //cout << "TEST after add parameters: value of parameter 'val' is: " << symbolTable.getValueById("val") << endl;
                     //cout << "3e" << endl;
                     returnType = dynamic_cast<ProtoType*>($1);
                     string cmdRetType;
@@ -186,11 +187,11 @@ FormalDecl: TypeAnnotation Type ID {
         destroyOnExit();
     }
 };
-Statements:  Statement Statements {
+Statements:  Statements {int loc = CodeBuffer::instance().emit("br label @"); string lab = CodeBuffer::instance().genLabel(); CodeBuffer::instance().bpatch(CodeBuffer::makelist({loc, BranchLabelIndex::FIRST}), lab);} Statement {
                 $$ = new Bool();
                 toDeleteList.push_back($$);
-                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($1)->getTrueList(), dynamic_cast<Bool*>($2)->getTrueList()));
-                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($1)->getFalseList(), dynamic_cast<Bool*>($2)->getFalseList()));
+                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($1)->getTrueList()));
+                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getFalseList(), dynamic_cast<Bool*>($1)->getFalseList()));
             }
             | Statement {
                 $$ = new Bool();
@@ -212,51 +213,51 @@ Statement: OpenStatement {
                 dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
             }
 ;
-OpenStatement:  IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
+OpenStatement:  IF ifMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
                     //cout << 12 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
                     int place = CodeBuffer::instance().emit("br label @");
                     pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
 
 
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($4)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
 
                     endOfScope();  
                 }
-                | IF LPAREN Exp IfWhileMarker RPAREN OpenStatement { 
+                | IF ifMarker LPAREN Exp IfWhileMarker RPAREN OpenStatement { 
                     //cout << 13 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
 
                     int place = CodeBuffer::instance().emit("br label @");
                     pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
 
 
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($4)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
                     endOfScope();
                 }
-                | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE OpenStatement { 
+                | IF ifMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE OpenStatement { 
                     //cout << 14 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($9)->getTrueList()));
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($9)->getFalseList()));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($10)->getTrueList()));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($10)->getFalseList()));
 
                     int place = CodeBuffer::instance().emit("br label @");
                     pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
 
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), dynamic_cast<Bool*>($7)->getLabel());
-                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getFalseList(), dynamic_cast<Bool*>($8)->getLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($8)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
                     
                     endOfScope();
                 }
@@ -293,20 +294,20 @@ ClosedStatement:    NonIfStatement {
                             dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
                         }
                     }
-                    | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE ClosedStatement { 
+                    | IF ifMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE ClosedStatement { 
                         //cout << 16 << endl;
                         $$ = new Bool();
                         toDeleteList.push_back($$);
-                        dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
-                        dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
-                        dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($9)->getTrueList()));
-                        dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($9)->getFalseList()));
+                        dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                        dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                        dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($10)->getTrueList()));
+                        dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($10)->getFalseList()));
                         int place = CodeBuffer::instance().emit("br label @");
                         pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);     
 
-                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), dynamic_cast<Bool*>($7)->getLabel());
-                        CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
+                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getFalseList(), dynamic_cast<Bool*>($8)->getLabel());
+                        CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($8)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
                         endOfScope();
                     }
                     | WHILE WhileMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
@@ -331,6 +332,13 @@ ClosedStatement:    NonIfStatement {
                         whileCounter--; 
                     }
 ;
+ifMarker: {
+        $$ = new Bool();
+        toDeleteList.push_back($$);
+        int loc = CodeBuffer::instance().emit("br label @");
+        string lab = CodeBuffer::instance().genLabel();
+        CodeBuffer::instance().bpatch(CodeBuffer::makelist({loc, BranchLabelIndex::FIRST}), lab);
+    };
 WhileMarker: { 
         /*cout << 18 << endl;*/ //call f(5) f(int a)
         whileCounter++;
@@ -394,7 +402,7 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE {
                         
                     } else { //var is num
                         reg1 = getNextReg();
-                        tmpLine = reg1 + " = i32 0"; //%t0 = i32 0 
+                        tmpLine = reg1 + " = add i32 0, 0"; //%t0 = i32 0 
                         //TODO: check if you can do i32 0
                         CodeBuffer::instance().emit(tmpLine);
                     }
@@ -658,7 +666,12 @@ Call:         ID LPAREN ExpList RPAREN {
                                 ret = "void";
                             }
                             string reg = getNextReg();
-                            string line = reg + " = call " + ret + " @" + dynamic_cast<Id*>($1)->id + " ()";
+                            string line;
+                            if(ret == "void") {
+                                line = "call " + ret + " @" + dynamic_cast<Id*>($1)->id + " ()";
+                            } else {
+                                line = reg + " = call " + ret + " @" + dynamic_cast<Id*>($1)->id + " ()";
+                            }
                             CodeBuffer::instance().emit(line);
                             $$->setValue(reg);
                         } else {
@@ -673,8 +686,8 @@ Call:         ID LPAREN ExpList RPAREN {
                 }
             }
 ;
-ExpList:      Exp COMMA ExpList { /*cout << 30 << endl;*/ $$ = new ExpList(*(dynamic_cast<ProtoType*>($1)), dynamic_cast<ExpList*>($3)->getExpList()); toDeleteList.push_back($$); /*delete $1; delete $3;*/} /* maybe need to flip */
-			| Exp { /*cout << 31 << endl;*/ $$ = new ExpList(*(dynamic_cast<ProtoType*>($1))); toDeleteList.push_back($$); /*delete $1;*/ } //TODO: check if exp dies in expList afterwards
+ExpList:      ExpList COMMA Exp { /*cout << 30 << endl;*/ $$ = new ExpList(*(dynamic_cast<ProtoType*>($3)), dynamic_cast<ExpList*>($1)->getExpList()); toDeleteList.push_back($$); /*delete $1; delete $3;*/} /* maybe need to flip */
+			| Exp { /*cout << 31 << endl;*/ $1->getValue(); $$ = new ExpList(*(dynamic_cast<ProtoType*>($1))); toDeleteList.push_back($$); /*delete $1;*/ } //TODO: check if exp dies in expList afterwards
 ;
 Type:         INT { /*cout << 32 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); }
     		| BYTE { /*cout <<33 << endl;*/ $$ = new Byte(); toDeleteList.push_back($$); }
@@ -735,8 +748,16 @@ Exp:          LPAREN Exp RPAREN {
                 if(isNumbers($1, $3)) {
                     std::string val1 = dynamic_cast<ProtoType*>($1)->getValue();
                     std::string val3 = dynamic_cast<ProtoType*>($3)->getValue();
+                    string tReg;
+                    if($3->isByte()) {
+                        tReg = getNextReg();
+                        string tmp = tReg + " = zext i8 " + val3 + " to i32";
+                        CodeBuffer::instance().emit(tmp);
+                    } else {
+                        tReg = val3;
+                    }
                     string cond = getNextReg();
-                    std::string line = cond + " = icmp eq i32 " + val3 + ", 0";
+                    std::string line = cond + " = icmp eq i32 " + tReg + ", 0";
                     CodeBuffer::instance().emit(line);
                     string trueLabel = "trueLabel" + std::to_string(regCounter);
                     string falseLabel = "falseLabel" + std::to_string(regCounter);
@@ -906,10 +927,10 @@ Exp:          LPAREN Exp RPAREN {
                         dynamic_cast<ProtoType*>($$)->setIsLiteral(false);
                         //cout << "40b" << endl;
                         if(type.getIsConst() && type.getIsLiteral()) {
-                            cout << "40c" << endl;
+                            //cout << "40c" << endl;
                             dynamic_cast<ProtoType*>($$)->setValue(symbolTable.getValueById(dynamic_cast<Id*>($1)->id));
                             if(type.isBool()) {
-                                cout << "test" << endl;
+                                //cout << "test" << endl;
                                 int place = CodeBuffer::instance().emit("br i1 " + dynamic_cast<ProtoType*>($$)->getValue() + ", label @, label @");
                                 std::pair<int,BranchLabelIndex> newPair1 = std::make_pair(place, BranchLabelIndex::FIRST); //TODO: check if this line is right
                                 dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair1));
@@ -1285,7 +1306,7 @@ void initialEmit() {
     CodeBuffer::instance().emitGlobal("declare void @exit(i32)");
     CodeBuffer::instance().emitGlobal("@.int_specifier = constant [4 x i8] c\"\%d\\0A\\00\"");
     CodeBuffer::instance().emitGlobal("@.str_specifier = constant [4 x i8] c\"\%s\\0A\\00\"");
-    CodeBuffer::instance().emitGlobal("@.devision_by_zero = constant [23 x i8] c\"Error devision by zero\\00\"");
+    CodeBuffer::instance().emitGlobal("@.devision_by_zero = constant [23 x i8] c\"Error division by zero\\00\"");
     CodeBuffer::instance().emit("define void @printi(i32) {");
     CodeBuffer::instance().emit("\%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
     CodeBuffer::instance().emit("call i32 (i8*, ...) @printf(i8* \%spec_ptr, i32 %0)");
