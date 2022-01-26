@@ -40,12 +40,10 @@ continue                                        return CONTINUE;
 =                                               return ASSIGN;
 ([!=]=)                                         yylval = new RelopEq(yytext); return RELOP_EQ;
 ((([<>])=)|<|>)                                 yylval = new RelopRelation(yytext); return RELOP_RELATION;
-+                                               return PLUS;
+\+                                               return PLUS;
 -                                               return MINUS;
-/*([-\+])                                         return PLUS_MINUS;*/
 \*                                              return PRODUCT;
-/                                               return DEVISION;
-/*([\*//*])                                         return PRODUCT_DEVISION;*/
+\/                                               return DEVISION;
 (({letter})({letter}|{digit})*)                 yylval = new Id(yytext); return ID;
 ((([1-9]({digit})*))|0)                         yylval = new Num(atoi(yytext)); return NUM;
 (\"([^\n\r\"\\]|\\[rnt\"\\])+\")                yylval = new StringVal(yytext); return STRING;

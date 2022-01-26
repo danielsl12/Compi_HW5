@@ -5,6 +5,7 @@
 #include "SymbolTable.h"
 #include <vector>
 #include <iostream>
+#include <map>
 
 using namespace std;
 using namespace output;
@@ -18,11 +19,12 @@ void endOfScope();
 void initialEmit();
 bool isRegister(std::string val);
 std::string toLlvmTypes(std::vector<ProtoType*> types);
-std::string toLlvmArgs(std::vector<ProtoType*> types);
+std::string toLlvmArgs(std::vector<std::string> typesOfFunc, std::vector<ProtoType*> args);
 std::string getNextReg();
 std::string getNextGlobal();
 SymbolTable symbolTable;
 int whileCounter = 0;
+std::vector<Bool*> whileVec;
 int regCounter = 0;
 std::map<std::string, int> globalDict;
 ProtoType* returnType = nullptr;
@@ -92,7 +94,7 @@ extern int yylex();
 %%
 /* Rules */
 Program: { 
-            // cout << 1 << endl;
+            //cout << 1 << endl;
             ProtoType* voidTmp = new Void();
             ProtoType* stringTmp = new String();
             ProtoType* intTmp = new Int();
@@ -103,25 +105,30 @@ Program: {
             symbolTable.insertAtTop("printi", Func(*voidTmp, "random2", *intTmp));
             initialEmit();
          } Funcs { 
-            //  cout << 2 << endl;
+              //cout << 2 << endl;
           };
 Funcs: FuncDecl Funcs //{ cout << 2 << "a" << endl; } //maybe need to flip
             | 
 ;
 FuncDecl: RetType ID LPAREN Formals RPAREN {
-                // cout << 3 << endl;
+                //cout << 3 << endl;
                 toDeleteList.push_back($2);
+                //cout << "3a" << endl;
                 if (symbolTable.findId((dynamic_cast<Id*>($2)->id))) {
+                    //cout << "3b" << endl;
                     errorDef(yylineno, (dynamic_cast<Id*>($2)->id));
                     destroyOnExit();
                 } else {
+                    //cout << "3c" << endl;
                     symbolTable.insertAtTop(dynamic_cast<Id*>($2)->id, Func(*(dynamic_cast<ProtoType*>($1)), dynamic_cast<Formals*>($4)->getNames(), dynamic_cast<Formals*>($4)->getTypes()));
                     symbolTable.pushNewEntry();
+                    //cout << "3d" << endl;
                     if(symbolTable.addParameters(*(dynamic_cast<Formals*>($4)), yylineno)) {
                         destroyOnExit();
                     }
+                    //cout << "3e" << endl;
                     returnType = dynamic_cast<ProtoType*>($1);
-                    string cmdRetType();
+                    string cmdRetType;
                     if(returnType->isByte()) {
                         cmdRetType = "i8";
                     } else if(returnType->isInt()) {
@@ -131,18 +138,22 @@ FuncDecl: RetType ID LPAREN Formals RPAREN {
                     } else if(returnType->isVoid()) {
                         cmdRetType = "void";
                     }
-                    string cmd("define ");
+                    //cout << "3f" << endl;
+                    string cmd = "define ";
+                    //cout << "3g" << endl;
                     cmd += cmdRetType + " @" + dynamic_cast<Id*>($2)->id + "("+ toLlvmTypes(dynamic_cast<Formals*>($4)->getTypes()) + ") {";
+                    //cout << "3h" << endl;
                     CodeBuffer::instance().emit(cmd);
                     CodeBuffer::instance().emit("\%stack = alloca i32, i32 50");
                 }
+                //cout << "end of 3" << endl;
           } LBRACE Statements RBRACE {
                 //cout << 4 << endl;
                 string line;
                 if(returnType->isBool()) {
                     line = "ret i1 0";
                 } else if(returnType->isInt()) {
-                    line "ret i32 0"
+                    line = "ret i32 0";
                 } else if(returnType->isByte()) {
                     line = "ret i8 0";
                 } else {
@@ -154,8 +165,8 @@ FuncDecl: RetType ID LPAREN Formals RPAREN {
                 CodeBuffer::instance().emit("}");
           }
 ;
-RetType:      Type { $$ = $1; $$->setIsLiteral(false); } //cout << 5 << endl;}
-            | VOID { $$ = new Void(); toDeleteList.push_back($$); } //cout << 6 << endl;}
+RetType:      Type { $$ = $1;  /*cout << 5 << endl;*/}
+            | VOID { $$ = new Void(); toDeleteList.push_back($$); /*cout << 6 << endl;*/}
 ;
 Formals:     FormalsList {/*cout << 7 << endl;*/ $$ = new Formals(*(dynamic_cast<FormalsList*>($1))); toDeleteList.push_back($$); }
             | { /*cout << 8 << endl;*/ $$ = new Formals(); toDeleteList.push_back($$); }
@@ -175,36 +186,64 @@ FormalDecl: TypeAnnotation Type ID {
         destroyOnExit();
     }
 };
-Statements:  Statement Statements//{ $$ = calcStatement($1, $2); } /* maybe need to flip */
-            | Statement //{ $$ = Statement($1); }
+Statements:  Statement Statements {
+                $$ = new Bool();
+                toDeleteList.push_back($$);
+                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($1)->getTrueList(), dynamic_cast<Bool*>($2)->getTrueList()));
+                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($1)->getFalseList(), dynamic_cast<Bool*>($2)->getFalseList()));
+            }
+            | Statement {
+                $$ = new Bool();
+                toDeleteList.push_back($$);
+                dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($1)->getTrueList());
+                dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
+            }
 ;
-Statement: OpenStatement //{ $$ = Statement($1); }
-			| ClosedStatement //{ $$ = Statement($1); }
+Statement: OpenStatement { 
+                $$ = new Bool();
+                toDeleteList.push_back($$);
+                dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($1)->getTrueList()); 
+                dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
+            }
+			| ClosedStatement {
+                $$ = new Bool();
+                toDeleteList.push_back($$);
+                dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($1)->getTrueList()); 
+                dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
+            }
 ;
 OpenStatement:  IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
-                    // cout << 12 << endl;
+                    //cout << 12 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
                     dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
                     dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
+                    int place = CodeBuffer::instance().emit("br label @");
+                    pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
+
 
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+
                     endOfScope();  
                 }
                 | IF LPAREN Exp IfWhileMarker RPAREN OpenStatement { 
-                    // cout << 13 << endl;
+                    //cout << 13 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
                     dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
                     dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
 
+                    int place = CodeBuffer::instance().emit("br label @");
+                    pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
+
+
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($3)->getFalseList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
                     endOfScope();
                 }
                 | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE OpenStatement { 
-                    // cout << 14 << endl;
+                    //cout << 14 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
                     dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
@@ -212,25 +251,33 @@ OpenStatement:  IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement {
                     dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($9)->getTrueList()));
                     dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($9)->getFalseList()));
 
+                    int place = CodeBuffer::instance().emit("br label @");
+                    pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);
+
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), dynamic_cast<Bool*>($7)->getLabel());
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::instance().genLabel());
+                    CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
+                    
                     endOfScope();
                 }
                 | WHILE WhileMarker LPAREN Exp IfWhileMarker RPAREN OpenStatement { 
-                    /*cout << 15 << endl;*/ 
+                    //cout << 15 << endl;
                     $$ = new Bool();
                     toDeleteList.push_back($$);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                    //dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                    //dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                    dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($7)->getTrueList());
+                    dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($7)->getFalseList());
 
-                    CodeBuffer::instance().emit("br label " + dynamic_cast<Bool*>($2)->getLabel());
+                    CodeBuffer::instance().emit("br label %" + dynamic_cast<Bool*>($2)->getLabel());
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
                     string afterWhileLab = CodeBuffer::instance().genLabel();
                     CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getFalseList(), afterWhileLab);
                     
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getTrueList(), afterWhileLab); //all the breaks goto after the while
-                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getFalseList(), dynamic_cast<Bool*>($2)->getLabel()); //all the continues goto the start
+                    //cout << "after while label is: " << afterWhileLab << endl;
+                    //Note: was $7, i changed to $$ instead to see if it will change something
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($$)->getTrueList(), afterWhileLab); //all the breaks goto after the while
+                    CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($2)->getLabel()); //all the continues goto the start
                     endOfScope(); 
                     whileCounter--;
                 }
@@ -240,56 +287,70 @@ ClosedStatement:    NonIfStatement {
                         $$ = new Bool();
                         toDeleteList.push_back($$);
                         if($1->isBool()) {  //Checks if NonIfStatement went through break or continue |:^)
-                            dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($1)->getTrueList()));
-                            dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($1)->getFalseList()));
+                            //dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($1)->getTrueList()));
+                            //dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($1)->getFalseList()));
+                            dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($1)->getTrueList());
+                            dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($1)->getFalseList());
                         }
                     }
                     | IF LPAREN Exp IfWhileMarker RPAREN ClosedStatement ElseMarker ELSE ClosedStatement { 
-                        /*cout << 16 << endl;*/
+                        //cout << 16 << endl;
                         $$ = new Bool();
                         toDeleteList.push_back($$);
                         dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($6)->getTrueList()));
                         dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($6)->getFalseList()));
                         dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($9)->getTrueList()));
                         dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($9)->getFalseList()));
-                        
+                        int place = CodeBuffer::instance().emit("br label @");
+                        pair<int,BranchLabelIndex> newPair = make_pair(place, BranchLabelIndex::FIRST);     
+
                         CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getTrueList(), dynamic_cast<Bool*>($4)->getLabel());
                         CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($3)->getFalseList(), dynamic_cast<Bool*>($7)->getLabel());
-                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::instance().genLabel());
+                        CodeBuffer::instance().bpatch(CodeBuffer::merge(dynamic_cast<Bool*>($7)->getTrueList(), CodeBuffer::makelist(newPair)), CodeBuffer::instance().genLabel());
                         endOfScope();
                     }
                     | WHILE WhileMarker LPAREN Exp IfWhileMarker RPAREN ClosedStatement { 
-                        /*cout << 17 << endl;*/ 
+                        //cout << 17 << endl;
                         $$ = new Bool();
                         toDeleteList.push_back($$);
-                        dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
-                        dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                        //dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getTrueList(), dynamic_cast<Bool*>($7)->getTrueList()));
+                        //dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::merge(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($7)->getFalseList()));
+                        dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($7)->getTrueList());
+                        dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($7)->getFalseList());
 
-                        CodeBuffer::instance().emit("br label " + dynamic_cast<Bool*>($2)->getLabel());
+                        CodeBuffer::instance().emit("br label %" + dynamic_cast<Bool*>($2)->getLabel());
                         CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getTrueList(), dynamic_cast<Bool*>($5)->getLabel());
                         string afterWhileLab = CodeBuffer::instance().genLabel();
                         CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($4)->getFalseList(), afterWhileLab);
                         
-                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getTrueList(), afterWhileLab); //all the breaks goto after the while
-                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($7)->getFalseList(), dynamic_cast<Bool*>($2)->getLabel()); //all the continues goto the start
+                        //cout << "after while label is: " << afterWhileLab << endl;
+                        //Note: was $7 instead of $$. Changed to see what will happen
+                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($$)->getTrueList(), afterWhileLab); //all the breaks goto after the while
+                        CodeBuffer::instance().bpatch(dynamic_cast<Bool*>($$)->getFalseList(), dynamic_cast<Bool*>($2)->getLabel()); //all the continues goto the start
                         endOfScope(); 
                         whileCounter--; 
                     }
 ;
 WhileMarker: { 
-        /*cout << 18 << endl;*/ 
-        whileCounter++; 
+        /*cout << 18 << endl;*/ //call f(5) f(int a)
+        whileCounter++;
         $$ = new Bool();
         toDeleteList.push_back($$);
-        dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel());
+        int loc = CodeBuffer::instance().emit("br label @");
+        string lab = CodeBuffer::instance().genLabel();
+        dynamic_cast<Bool*>($$)->setLabel(lab);
+        CodeBuffer::instance().bpatch(CodeBuffer::makelist({loc, BranchLabelIndex::FIRST}), lab);
     };
 IfWhileMarker: { 
-        // cout << 19 << endl;
+        //cout << 19 << endl;
         if ($0->isBool()) {
             symbolTable.pushNewEntry();
             $$ = new Bool();
             toDeleteList.push_back($$);
-            dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel());
+            int loc = CodeBuffer::instance().emit("br label @");
+            string lab = CodeBuffer::instance().genLabel();
+            dynamic_cast<Bool*>($$)->setLabel(lab);
+            CodeBuffer::instance().bpatch(CodeBuffer::makelist({loc, BranchLabelIndex::FIRST}), lab);
         } else {
             errorMismatch(yylineno);
             destroyOnExit();
@@ -306,12 +367,20 @@ ElseMarker: {
     dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
     dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel());
 };
-NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOfScope(); } //{ $$ = Statement($2); } 
+NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { 
+                $$ = new Bool();
+                toDeleteList.push_back($$);
+                dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($3)->getTrueList());
+                dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($3)->getFalseList());
+                endOfScope(); 
+            } //{ $$ = Statement($2); } 
             | TypeAnnotation Type ID SC { 
-                // cout << 21 << endl;
+                //cout << 21 << endl;
                 toDeleteList.push_back($3);
                 if (!symbolTable.findId((dynamic_cast<Id*>($3)->id))) {
-                    // cout << 21 << "a" << endl;
+                    //cout << 21 << "a" << endl;
+                    string tmpLine;
+                    string reg1;
                     if (dynamic_cast<TypeAnnotation*>($1)->getIsConst()) {
                         errorConstDef(yylineno);
                         destroyOnExit();
@@ -319,24 +388,24 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     symbolTable.insertAtTop((dynamic_cast<Id*>($3)->id), *(dynamic_cast<ProtoType*>($2)));
                     std::string cmd;
                     if(dynamic_cast<ProtoType*>($2)->isBool()) { //var is bool
-                        std::string reg1 = getNextReg();
-                        std::string tmpLine = reg1 + " = zext i1 false to i32"; //%t0 = zext i1 false to i32
+                        reg1 = getNextReg();
+                        tmpLine = reg1 + " = zext i1 false to i32"; //%t0 = zext i1 false to i32
                         CodeBuffer::instance().emit(tmpLine);
                         
                     } else { //var is num
-                        std::string reg1 = getNextReg();
-                        std::string tmpLine = reg1 + " = i32 0"; //%t0 = i32 0 
+                        reg1 = getNextReg();
+                        tmpLine = reg1 + " = i32 0"; //%t0 = i32 0 
                         //TODO: check if you can do i32 0
                         CodeBuffer::instance().emit(tmpLine);
                     }
                     std::string reg2 = getNextReg();
-                    int offset = symbolTable.findAbsoluteOffset(dynamic_cast<Id*>($3)->id)
-                    tmpLine = reg2 + " = add i32 " + offset + ", \%stack"; //%t1 = add i32 offset, %stack
+                    int offset = symbolTable.getAbsoluteOffset(dynamic_cast<Id*>($3)->id);
+                    tmpLine = reg2 + " = getelementptr i32, i32* %stack, i32 " + to_string(offset); //%t1 = add i32 offset, %stack
                     CodeBuffer::instance().emit(tmpLine);
                     tmpLine = "store i32 " + reg1 + ", i32* " + reg2; //store i32 %t0, i32* %t1
                     CodeBuffer::instance().emit(tmpLine);
                 } else {
-                    // cout << 21 << "b" << endl;
+                    //cout << 21 << "b" << endl;
                     errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
                     destroyOnExit();
                 }
@@ -357,10 +426,10 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     dynamic_cast<ProtoType*>($2)->setConst(dynamic_cast<TypeAnnotation*>($1)->getIsConst());
                     symbolTable.insertAtTop((dynamic_cast<Id*>($3)->id), *(dynamic_cast<ProtoType*>($2)));
                                             
-                    int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
+                    int offset = symbolTable.getAbsoluteOffset((dynamic_cast<Id*>($3)->id));
                     std::string value = dynamic_cast<ProtoType*>($5)->getValue(); //value is a terminal like b5, 13, true... or a register
                     std::string reg1 = getNextReg();
-                    std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    std::string tmpLine = reg1 + " = getelementptr i32, i32* %stack, i32 " + to_string(offset);;
                     CodeBuffer::instance().emit(tmpLine);
                     /*
                     if(isRegister(value)) {
@@ -370,16 +439,17 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     if(dynamic_cast<TypeAnnotation*>($1)->getIsConst() && dynamic_cast<ProtoType*>($5)->getIsLiteral()) { //TODO: Add flag and value for const in SymbolTableEntry! and setting and getting this value in SymbolTable by id
                         symbolTable.setValueById((dynamic_cast<Id*>($3)->id), value);
                     } else {
+                        string reg2;
                         if ($5->isBool()) {
-                            std::string reg2 = getNextReg();
+                            reg2 = getNextReg();
                             tmpLine = reg2 + " = zext i1 " + value + " to i32";
                             CodeBuffer::instance().emit(tmpLine);
                         } else if ($5->isByte()) {
-                            std::string reg2 = getNextReg();
+                            reg2 = getNextReg();
                             tmpLine = reg2 + " = zext i8 " + value + " to i32";
                             CodeBuffer::instance().emit(tmpLine);
                         } else {
-                            std::string reg2 = value;
+                            reg2 = value;
                         }
                         std::string line = "store i32 " + reg2 + ", i32* " + reg1;
                         CodeBuffer::instance().emit(line);
@@ -392,7 +462,9 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
             | ID ASSIGN Exp SC { 
                 //cout << 23 << endl;
                 toDeleteList.push_back($1);
+                //cout << "23a" << endl;
                 if (symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    //cout << "23b" << endl;
                     ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
                     if (type.isFunc()) {
                         errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
@@ -410,29 +482,38 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                         errorMismatch(yylineno);
                         destroyOnExit();
                     }
+                //cout << "23c" << endl;
 
                     //TODO: check if this is good
-                    int offset = symbolTable.findAbsoluteOffset((dynamic_cast<Id*>($3)->id));
+                    int offset = symbolTable.getAbsoluteOffset((dynamic_cast<Id*>($1)->id));
+                    //cout << "23c1" << endl;
                     std::string value = dynamic_cast<ProtoType*>($3)->getValue(); //value is a terminal like b5, 13, true... or a register
+                    //cout << "23d" << endl;
                     std::string reg1 = getNextReg();
-                    std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
+                    std::string tmpLine = reg1 + " = getelementptr i32, i32* %stack, i32 " + to_string(offset);;
                     CodeBuffer::instance().emit(tmpLine);
+                    string line;
+                    /*
                     if(isRegister(value)) {
-                        std::line = "store i32 " + value + ", i32* " + reg1;
-                    } else {   
-                        if ($3->isBool()) {
-                            std::string reg2 = getNextReg();
-                            tmpLine = reg2 + " = zext i1 " + value + " to i32";
-                            CodeBuffer::instance().emit(tmpLine);
-                        } else if ($3->isByte()) {
-                            std::string reg2 = getNextReg();
-                            tmpLine = reg2 + " = zext i8 " + value + " to i32";
-                            CodeBuffer::instance().emit(tmpLine);
-                        } else {
-                            std::string reg2 = value;
-                        }
-                        std::string line = "store i32 " + reg2 + ", i32* " + reg1;
+                        cout << "23e" << endl;
+                        line = "store i32 " + value + ", i32* " + reg1;
+                    } else {  */
+                    //cout << "23f" << endl;
+                    string reg2; 
+                    if ($3->isBool()) {
+                        reg2 = getNextReg();
+                        tmpLine = reg2 + " = zext i1 " + value + " to i32";
+                        CodeBuffer::instance().emit(tmpLine);
+                    } else if ($3->isByte()) {
+                        reg2 = getNextReg();
+                        tmpLine = reg2 + " = zext i8 " + value + " to i32";
+                        CodeBuffer::instance().emit(tmpLine);
+                    } else {
+                        reg2 = value;
                     }
+                    line = "store i32 " + reg2 + ", i32* " + reg1;
+                   
+                    //cout << "23g" << endl;
                     CodeBuffer::instance().emit(line);
                 } else {
                     errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
@@ -448,7 +529,7 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                 CodeBuffer::instance().emit("ret void");
             } //$$ = Statement(Void()); }
             | RETURN Exp SC { 
-                // cout << 25 << endl;
+                //cout << 25 << endl;
                 if (isNumbers($2, returnType)) {
                     if ($2->isInt() && returnType->isByte()) {
                         errorMismatch(yylineno);
@@ -458,14 +539,14 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                     errorMismatch(yylineno);
                     destroyOnExit();
                 }
-
+                string line;
                 string value = dynamic_cast<ProtoType*>($2)->getValue();
                 if ($2->isInt()) {
-                    string line = "ret i32 " + value;
+                    line = "ret i32 " + value;
                 } else if ($2->isByte()) {
-                    string line = "ret i8 " + value;
+                    line = "ret i8 " + value;
                 } else {
-                    string line = "ret i1 " + value;
+                    line = "ret i1 " + value;
                 }
                 CodeBuffer::instance().emit(line);
             }//$$ = Statement($2); }
@@ -480,7 +561,7 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                 int loc = CodeBuffer::instance().emit("br label @");
                 pair<int,BranchLabelIndex> newPair = make_pair(loc, BranchLabelIndex::FIRST);
                 dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
-                dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel());
+                //dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel()); //Removed this line in 26/1
             }
             | CONTINUE SC {
                 //cout << 27 << endl;
@@ -493,49 +574,54 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE { endOf
                 int loc = CodeBuffer::instance().emit("br label @");
                 pair<int,BranchLabelIndex> newPair = make_pair(loc, BranchLabelIndex::FIRST);
                 dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair));
-                dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel());
+                //dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel()); //Removed this line in 26/1
             }
 ;
 Call:         ID LPAREN ExpList RPAREN {
-                // cout << 28 << endl;
-                // cout << (dynamic_cast<Id*>($1)->id) << endl;
+                //cout << 28 << endl;
                 toDeleteList.push_back($1);
                 if(symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
-                    // cout << 28 << "a" << endl;
+                    //cout << 28 << "a" << endl;
                     ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
-                    // cout << 28 << "b" << endl;
+                    //cout << 28 << "b" << endl;
                     if(!type.isFunc()) {  //TODO: need to check if this is the right error to print
                         //delete returnType;
-                        // cout << 28 << "c" << endl;
+                        //cout << 28 << "c" << endl;
                         errorUndefFunc(yylineno, (dynamic_cast<Id*>($1)->id));
                         destroyOnExit();
                     } else {
-                        // cout << 28 << "d" << endl;
+                        //cout << 28 << "d" << endl;
                         if(type.compareArgs(dynamic_cast<ExpList*>($3)->getExpList())) {
                             $$ = new Call(type.getReturnType());
-                            if (dynamic_cast<Id*>($1)->id) == "print") {
+                            if ((dynamic_cast<Id*>($1)->id) == "print") {
                                 string globalVar = dynamic_cast<ExpList*>($3)->getExpList()[0]->getValue(); //we know this because it's a legal call for print.
                                 int len = globalDict[globalVar];
                                 string reg1 = getNextReg();
-                                string line = reg1 + " = getelementptr inbounds [" + std::to_string(len) + " x i8]* " + globalVar + ", i32 0, i32 0";
+                                string line = reg1 + " = getelementptr [" + std::to_string(len) + " x i8], [" + std::to_string(len) + " x i8]* " + globalVar + ", i32 0, i32 0";
                                 CodeBuffer::instance().emit(line);
-                                string reg = callNextReg();
-                                line = reg + " = call void @print(i8* " + reg1 + ")"; 
+                                //string reg = getNextReg();
+                                line = "call void @print(i8* " + reg1 + ")"; 
                                 CodeBuffer::instance().emit(line);
-                                $$->setValue(reg);
+                                //$$->setValue(reg);
                             } else {
                                 string ret;
-                                if (type.getReturnType()->isBool()) {
+                                //ProtoType& rType = dynamic_cast<ProtoType*>(type.getReturnType());
+                                if (type.getReturnType().isBool()) {
                                     ret = "i1";
-                                } else if(type.getReturnType()->isInt()) {
+                                } else if(type.getReturnType().isInt()) {
                                     ret = "i32";
-                                } else if(type.getReturnType()->isByte()) {
+                                } else if(type.getReturnType().isByte()) {
                                     ret = "i8";
                                 } else {
                                     ret = "void";
                                 }
-                                string reg = callNextReg();
-                                string line = reg + " = call" + ret + " @" + dynamic_cast<Id*>($1)->id + "(" + toLlvmArgs(dynamic_cast<ExpList*>($3)->getExpList()) +")";
+                                string reg = getNextReg();
+                                string line;
+                                if (ret == "void") {
+                                    line = "call " + ret + " @" + dynamic_cast<Id*>($1)->id + "(" + toLlvmArgs(type.getStrList(), dynamic_cast<ExpList*>($3)->getExpList()) +")";
+                                } else {
+                                    line = reg + " = call " + ret + " @" + dynamic_cast<Id*>($1)->id + "(" + toLlvmArgs(type.getStrList(), dynamic_cast<ExpList*>($3)->getExpList()) +")";
+                                }
                                 CodeBuffer::instance().emit(line);
                                 $$->setValue(reg);
                             }
@@ -562,17 +648,17 @@ Call:         ID LPAREN ExpList RPAREN {
                         if(type.compareArgs()) {
                             $$ = new Call(type.getReturnType());
                             string ret;
-                            if (type.getReturnType()->isBool()) {
+                            if (type.getReturnType().isBool()) {
                                 ret = "i1";
-                            } else if(type.getReturnType()->isInt()) {
+                            } else if(type.getReturnType().isInt()) {
                                 ret = "i32";
-                            } else if(type.getReturnType()->isByte()) {
+                            } else if(type.getReturnType().isByte()) {
                                 ret = "i8";
                             } else {
                                 ret = "void";
                             }
-                            string reg = callNextReg();
-                            string line = reg + " = call" + ret + " @" + dynamic_cast<Id*>($1)->id + " ()";
+                            string reg = getNextReg();
+                            string line = reg + " = call " + ret + " @" + dynamic_cast<Id*>($1)->id + " ()";
                             CodeBuffer::instance().emit(line);
                             $$->setValue(reg);
                         } else {
@@ -592,7 +678,7 @@ ExpList:      Exp COMMA ExpList { /*cout << 30 << endl;*/ $$ = new ExpList(*(dyn
 ;
 Type:         INT { /*cout << 32 << endl;*/ $$ = new Int(); toDeleteList.push_back($$); }
     		| BYTE { /*cout <<33 << endl;*/ $$ = new Byte(); toDeleteList.push_back($$); }
-    		| BOOL { /* out << 34 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
+    		| BOOL { /*cout << 34 << endl;*/ $$ = new Bool(); toDeleteList.push_back($$); }
 ;
 TypeAnnotation:  CONST { /*cout << 35 << endl;*/ $$ = new TypeAnnotation(true); toDeleteList.push_back($$); }
         	    | { /*cout << 36 << endl;*/ $$ = new TypeAnnotation(); toDeleteList.push_back($$); }
@@ -600,7 +686,7 @@ TypeAnnotation:  CONST { /*cout << 35 << endl;*/ $$ = new TypeAnnotation(true); 
 Exp:          LPAREN Exp RPAREN {
                 //cout << 37 << endl;
                 $$ = $2;  //TODO: check if need to assign $2's lists to $$
-                $$->setIsLiteral(false);
+                dynamic_cast<ProtoType*>($$)->setIsLiteral(false);
             }
             | Exp PRODUCT Exp {
                 //cout << 38 << endl;
@@ -613,12 +699,12 @@ Exp:          LPAREN Exp RPAREN {
                         string line;
                         if ($1->isByte() && isRegister(val1)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            line = reg2 + " = zext i8 " + val1 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = mul i32 " + reg2 + ", " + val3;
                         } else if ($3->isByte() && isRegister(val3)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            line = reg2 + " = zext i8 " + val3 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = mul i32 " + val1 + ", " + reg2;
                         } else {
@@ -650,17 +736,19 @@ Exp:          LPAREN Exp RPAREN {
                     std::string val1 = dynamic_cast<ProtoType*>($1)->getValue();
                     std::string val3 = dynamic_cast<ProtoType*>($3)->getValue();
                     string cond = getNextReg();
-                    std::string line = cond + " = icmp eq i32 " + val3 + " 0";
+                    std::string line = cond + " = icmp eq i32 " + val3 + ", 0";
                     CodeBuffer::instance().emit(line);
                     string trueLabel = "trueLabel" + std::to_string(regCounter);
                     string falseLabel = "falseLabel" + std::to_string(regCounter);
                     line = "br i1 " + cond + ", label %" + trueLabel + ", label %" + falseLabel;
                     CodeBuffer::instance().emit(line);
                     CodeBuffer::instance().emit(trueLabel + ":");
-                    string div = "%" + "divError" + std::to_string(regCounter);
-                    line = div + " = getelementptr inbounds [23 x i8]* @.devision_by_zero, i32 0, i32 0"
+                    string div = "%divError" + std::to_string(regCounter);
+                    line = div + " = getelementptr [23 x i8], [23 x i8]* @.devision_by_zero, i32 0, i32 0";
+                    CodeBuffer::instance().emit(line);
                     CodeBuffer::instance().emit("call void @print(i8* " + div + ")");
                     CodeBuffer::instance().emit("call void @exit(i32 1)");
+                    CodeBuffer::instance().emit("br label %" + falseLabel);
                     // %cond = icmp eq i32 val3, 0
                     // br %cond <trueLabel> <falseLabel>
                     CodeBuffer::instance().emit(falseLabel + ":");
@@ -669,12 +757,12 @@ Exp:          LPAREN Exp RPAREN {
                         std::string reg1 = getNextReg();
                         if ($1->isByte() && isRegister(val1)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            line = reg2 + " = zext i8 " + val1 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = sdiv i32 " + reg2 + ", " + val3;
                         } else if ($3->isByte() && isRegister(val3)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            line = reg2 + " = zext i8 " + val3 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = sdiv i32 " + val1 + ", " + reg2;
                         } else {
@@ -698,7 +786,7 @@ Exp:          LPAREN Exp RPAREN {
             }
             /*
             | Exp PRODUCT_DEVISION Exp {
-                //cout << 38 << endl;
+                cout << 38 << endl;
                 if(isNumbers($1, $3)) {
                     if($1->isInt() || $3->isInt()) {
                         $$ = new Int();
@@ -715,20 +803,22 @@ Exp:          LPAREN Exp RPAREN {
             | Exp PLUS Exp {
                 //cout << 39 << endl;
                 if(isNumbers($1, $3)) {
+                    string reg1;
+                    string line;
                     if($1->isInt() || $3->isInt()) {                        
                         $$ = new Int();
                         std::string val1 = dynamic_cast<ProtoType*>($1)->getValue();
                         std::string val3 = dynamic_cast<ProtoType*>($3)->getValue();
-                        std::string reg1 = getNextReg();
-                        string line;
+                        reg1 = getNextReg();
+                        line;
                         if ($1->isByte() && isRegister(val1)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            line = reg2 + " = zext i8 " + val1 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = add i32 " + reg2 + ", " + val3;
                         } else if ($3->isByte() && isRegister(val3)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            line = reg2 + " = zext i8 " + val3 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = add i32 " + val1 + ", " + reg2;
                         } else {
@@ -739,8 +829,8 @@ Exp:          LPAREN Exp RPAREN {
                         $$ = new Byte();
                         std::string val1 = dynamic_cast<ProtoType*>($1)->getValue();
                         std::string val3 = dynamic_cast<ProtoType*>($3)->getValue();
-                        std::string reg1 = getNextReg();
-                        string line = reg1 + " = add i8 " + val1 + ", " + val3;                     
+                        reg1 = getNextReg();
+                        line = reg1 + " = add i8 " + val1 + ", " + val3;                     
                     }
                     dynamic_cast<ProtoType*>($$)->setValue(reg1);
                     CodeBuffer::instance().emit(line);
@@ -761,12 +851,12 @@ Exp:          LPAREN Exp RPAREN {
                         $$ = new Int();
                         if ($1->isByte() && isRegister(val1)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val1 + "to i32";
+                            line = reg2 + " = zext i8 " + val1 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = sub i32 " + reg2 + ", " + val3;
                         } else if ($3->isByte() && isRegister(val3)) {
                             string reg2 = getNextReg();
-                            line = reg2 + " = zext i8 " + val3 + "to i32";
+                            line = reg2 + " = zext i8 " + val3 + " to i32";
                             CodeBuffer::instance().emit(line);
                             line = reg1 + " = sub i32 " + val1 + ", " + reg2;
                         } else {
@@ -787,7 +877,7 @@ Exp:          LPAREN Exp RPAREN {
             }
             /*
             | Exp PLUS_MINUS Exp {
-                //cout << 39 << endl;
+                cout << 39 << endl;
                 if(isNumbers($1, $3)) {
                     if($1->isInt() || $3->isInt()) {                        
                         $$ = new Int();
@@ -805,38 +895,54 @@ Exp:          LPAREN Exp RPAREN {
                 //cout << 40 << endl;
                 toDeleteList.push_back($1);
                 if(symbolTable.findId((dynamic_cast<Id*>($1)->id))) {
+                    //cout << "40a" << endl;
                     ProtoType& type = symbolTable.getIdType((dynamic_cast<Id*>($1)->id));
                     if(type.isFunc()) {  //TODO: need to check if this is the right error to print
                         errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
                         destroyOnExit();
                     } else {
-                        $$ = &type;
-                        if($1->getIsConst() && type->getIsLiteral()) {
+                        $$ = type.clone();
+                        toDeleteList.push_back($$);
+                        dynamic_cast<ProtoType*>($$)->setIsLiteral(false);
+                        //cout << "40b" << endl;
+                        if(type.getIsConst() && type.getIsLiteral()) {
+                            cout << "40c" << endl;
                             dynamic_cast<ProtoType*>($$)->setValue(symbolTable.getValueById(dynamic_cast<Id*>($1)->id));
+                            if(type.isBool()) {
+                                cout << "test" << endl;
+                                int place = CodeBuffer::instance().emit("br i1 " + dynamic_cast<ProtoType*>($$)->getValue() + ", label @, label @");
+                                std::pair<int,BranchLabelIndex> newPair1 = std::make_pair(place, BranchLabelIndex::FIRST); //TODO: check if this line is right
+                                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair1));
+                                std::pair<int,BranchLabelIndex> newPair2 = std::make_pair(place, BranchLabelIndex::SECOND); //TODO: check if this line is right
+                                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair2));                                
+                            }
+                            //cout << "40d" << endl;
                         } else {
+                            //cout << "40e" << endl;
                             int idOffset = symbolTable.getAbsoluteOffset(dynamic_cast<Id*>($1)->id);
                             std::string reg1 = getNextReg();
-                            std::string tmpLine = reg1 + " = add i32 " + offset + ", \%stack";
+                            std::string tmpLine = reg1 + " = getelementptr i32, i32* %stack, i32 " + to_string(idOffset);
                             CodeBuffer::instance().emit(tmpLine);
                             std::string reg2 = getNextReg();
-                            std::string tmpLine = reg2 + " = load i32, i32* " + reg1;
-                            dynamic_cast<ProtoType*>($$)->SetValue(reg2);
+                            tmpLine = reg2 + " = load i32, i32* " + reg1;
+                            dynamic_cast<ProtoType*>($$)->setValue(reg2);
                             CodeBuffer::instance().emit(tmpLine);
                             std::string reg3 = getNextReg();
                             if(type.isBool()) { //alon said this is good |:^D
                                 tmpLine = reg3 + " = trunc i32 " + reg2 + " to i1";
                                 CodeBuffer::instance().emit(tmpLine);
-                                dynamic_cast<ProtoType*>($$)->SetValue(reg3);
-                                int place = CodeBuffer::instance().emit("br i1 " + reg3 + "label @, label @");
+                                dynamic_cast<ProtoType*>($$)->setValue(reg3);
+                                int place = CodeBuffer::instance().emit("br i1 " + reg3 + ", label @, label @");
                                 std::pair<int,BranchLabelIndex> newPair1 = std::make_pair(place, BranchLabelIndex::FIRST); //TODO: check if this line is right
-                                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::instace.makelist(newPair1));
+                                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair1));
                                 std::pair<int,BranchLabelIndex> newPair2 = std::make_pair(place, BranchLabelIndex::SECOND); //TODO: check if this line is right
-                                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::instace.makelist(newPair2));
+                                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair2));
                             } else if(type.isByte()) {
                                 tmpLine = reg3 + " = trunc i32 " + reg2 + " to i8";
                                 CodeBuffer::instance().emit(tmpLine);
-                                dynamic_cast<ProtoType*>($$)->SetValue(reg3);
+                                dynamic_cast<ProtoType*>($$)->setValue(reg3);
                             }
+                            //cout << "40f" << endl;
                         }
                     }
                 } else { 
@@ -844,12 +950,12 @@ Exp:          LPAREN Exp RPAREN {
                     destroyOnExit();
                 }
             }
-			| Call { /*cout << 41 << endl;*/$$ = dynamic_cast<Call*>($1)->getReturnType(); $$->setValue($1->getValue()); }  //TODO: do it
+			| Call { /*cout << 41 << endl;*/ $$ = dynamic_cast<Call*>($1)->getReturnType(); $$->setValue($1->getValue()); }  //TODO: do it
             | NUM B { 
                 //cout << 42 << endl;
                 toDeleteList.push_back($1);
                 if (((dynamic_cast<Num*>($1)->num) < 0)) {
-                    dynamic_cast<Num*>($1)->num &= ((1 << 8) - 1) //TODO: is this mashlim Le'Two? (8-bit)
+                    dynamic_cast<Num*>($1)->num &= ((1 << 8) - 1); //TODO: is this mashlim Le'Two? (8-bit)
                 }
                 if (((dynamic_cast<Num*>($1)->num) > 255)) {
                     errorByteTooLarge(yylineno, to_string(((dynamic_cast<Num*>($1)->num))));
@@ -860,43 +966,47 @@ Exp:          LPAREN Exp RPAREN {
                     dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num));
                 }
             } /* maybe need to flip */
-            | NUM { /*cout << 43 << endl;*/ $$ = new Int(true); toDeleteList.push_back($$); toDeleteList.push_back($1); dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num)); }
+            | NUM { /*//cout << 43 << endl;*/ $$ = new Int(true); toDeleteList.push_back($$); toDeleteList.push_back($1); dynamic_cast<ProtoType*>($$)->setValue(std::to_string(dynamic_cast<Num*>($1)->num)); }
 			| STRING {
-                /*cout << 44 << endl;*/ 
+                //cout << 44 << endl; 
                 $$ = new String(); 
                 toDeleteList.push_back($$);
                 string varName = getNextGlobal();
                 dynamic_cast<ProtoType*>($$)->setValue(varName);
-                int strLen = dynamic_cast<StringVal>($1)->str.length() + 1; //because we want \00 in the end
-                string line = varName + " = constant [" + std::to_string(strLen) + " x i8] c\"" + dynamic_cast<StringVal>($1)->str + "\00\""; 
+                int strLen = dynamic_cast<StringVal*>($1)->str.length() + 1; //because we want \00 in the end
+                //cout << "this is the StringVal" << endl;
+                //cout << dynamic_cast<StringVal*>($1)->str << endl;
+                string line = varName + " = constant [" + std::to_string(strLen) + " x i8] c\"" + dynamic_cast<StringVal*>($1)->str + "\\00\""; 
                 globalDict[varName] = strLen;
-                CodeBuffer::emitGlobal(line);
+                CodeBuffer::instance().emitGlobal(line);
             }
 			| TRUE {
-                /*cout << 45 << endl;*/ 
-                $$ = new Bool(BoolType::TRUE, true); 
+                //cout << 45 << endl; 
+                $$ = new Bool(BoolType::B_TRUE, true); 
                 toDeleteList.push_back($$); 
-                dynamic_cast<ProtoType*>($$)->setValue(std::to_string(1)); 
-                int place = CodeBuffer::instance().emit("br i1 true label @, label @");
+                int place = CodeBuffer::instance().emit("br i1 true, label @, label @");
                 std::pair<int,BranchLabelIndex> newPair = std::make_pair(place, BranchLabelIndex::FIRST); //TODO: check if this line is right
-                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::instace.makelist(newPair));
+                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
+                newPair = std::make_pair(place, BranchLabelIndex::SECOND); 
+                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair));
             }
             | FALSE { 
-                /*cout << 46 << endl;*/ 
-                $$ = new Bool(BoolType::FALSE, true); 
+                //cout << 46 << endl;
+                $$ = new Bool(BoolType::B_FALSE, true); 
                 toDeleteList.push_back($$); 
-                dynamic_cast<ProtoType*>($$)->setValue(std::to_string(0));
-                int place = CodeBuffer::instance().emit("br i1 false label @, label @");
+                int place = CodeBuffer::instance().emit("br i1 false, label @, label @");
                 std::pair<int,BranchLabelIndex> newPair = std::make_pair(place, BranchLabelIndex::SECOND); //TODO: check if this line is right
-                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::instace.makelist(newPair));
+                dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair));
+                newPair = std::make_pair(place, BranchLabelIndex::FIRST);
+                dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
             }
 			| NOT Exp {
                 //cout << 47 << endl;
                 if($2->isBool()) {
                     $$ = new Bool();
                     toDeleteList.push_back($$);
-                    dynamic_cast<Bool*>($$)->setTrueList($2->getFalseList());
-                    dynamic_cast<Bool*>($$)->setFalseList($2->getTrueList());
+                    dynamic_cast<Bool*>($$)->setTrueList(dynamic_cast<Bool*>($2)->getFalseList());
+                    dynamic_cast<Bool*>($$)->setFalseList(dynamic_cast<Bool*>($2)->getTrueList());
                 } else {
                     output::errorMismatch(yylineno);
                     destroyOnExit();
@@ -919,7 +1029,7 @@ Exp:          LPAREN Exp RPAREN {
                     destroyOnExit();
                 }
             }
-            | Exp OR { $$ = new Bool(); toDeleteList.push_back($$); $$->setLabel(CodeBuffer::instance().genLabel()); } Exp {
+            | Exp OR { $$ = new Bool(); toDeleteList.push_back($$); dynamic_cast<Bool*>($$)->setLabel(CodeBuffer::instance().genLabel()); } Exp {
                 //cout << 49 << endl;
                 if(isBools($1, $4)) { //it was $3 do we need to change?
                     $$ = new Bool();
@@ -962,9 +1072,9 @@ Exp:          LPAREN Exp RPAREN {
                     line = "br i1 " + reg1 + ", label @, label @";
                     int place = CodeBuffer::instance().emit(line);
                     std::pair<int,BranchLabelIndex> newPair = std::make_pair(place, BranchLabelIndex::FIRST);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::instace.makelist(newPair));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
                     newPair = std::make_pair(place, BranchLabelIndex::SECOND);
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::instace.makelist(newPair));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair));
                 } else {
                     output::errorMismatch(yylineno);
                     destroyOnExit();
@@ -976,6 +1086,8 @@ Exp:          LPAREN Exp RPAREN {
                     $$ = new Bool();
                     toDeleteList.push_back($$);
                     toDeleteList.push_back($2);
+                    string line;
+                    string reg1 = getNextReg();
                     if($1->isByte() && $3->isByte()) {
                         line = reg1 + " = icmp " + dynamic_cast<RelopEq*>($2)->op + " i8 " + dynamic_cast<ProtoType*>($1)->getValue() + ", " + dynamic_cast<ProtoType*>($3)->getValue();
                     } else {
@@ -997,9 +1109,9 @@ Exp:          LPAREN Exp RPAREN {
                     line = "br i1 " + reg1 + ", label @, label @";
                     int place = CodeBuffer::instance().emit(line);
                     std::pair<int,BranchLabelIndex> newPair = std::make_pair(place, BranchLabelIndex::FIRST);
-                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::instace.makelist(newPair));
+                    dynamic_cast<Bool*>($$)->setTrueList(CodeBuffer::makelist(newPair));
                     newPair = std::make_pair(place, BranchLabelIndex::SECOND);
-                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::instace.makelist(newPair));
+                    dynamic_cast<Bool*>($$)->setFalseList(CodeBuffer::makelist(newPair));
                 } else {
                     output::errorMismatch(yylineno);
                     destroyOnExit();
@@ -1082,7 +1194,7 @@ void destroyOnExit() {
 }
 
 void endOfScope() {
-    endScope();
+    //endScope();
     /* cout << symbolTable.top(); */
     symbolTable.pop();
     /* endScope(); */
@@ -1093,8 +1205,10 @@ bool isRegister(std::string val) {
 }
 
 std::string toLlvmTypes(std::vector<ProtoType*> types) {
+    ////cout << "start of toLlvmTypes" << endl;
     string str = "";
     int len = types.size();
+    //cout << len << endl;
     for(int i = 0; i < len - 1; ++i) {
         if(types[i]->isBool()) {
             str += "i1, ";
@@ -1104,47 +1218,66 @@ std::string toLlvmTypes(std::vector<ProtoType*> types) {
             str += "i32, ";
         }
     }
-    if(types[len - 1]->isBool()) {
-        str += "i1";
-    } else if(types[i]->isByte()) {
-        str += "i8";
-    } else if(types[i]->isInt()) {
-        str += "i32";
+    //cout << "end of for" << endl;
+    if (len > 0) {
+        if(types[len - 1]->isBool()) {
+            str += "i1";
+        } else if(types[len - 1]->isByte()) {
+            str += "i8";
+        } else if(types[len - 1]->isInt()) {
+            str += "i32";
+        }
     }
+    //cout << "end of toLlvmTypes" << endl;
     return str;
 }
 
-std::string toLlvmArgs(std::vector<ProtoType*> types) {
+std::string toLlvmArgs(std::vector<std::string> typesOfFunc, std::vector<ProtoType*> args) {
     string str = "";
-    int len = types.size();
+    int len = args.size();
     for(int i = 0; i < len - 1; ++i) {
-        if(types[i]->isBool()) {
-            str += "i1 " + types[i]->getValue() + ", "; //dont need dynamic cast because getValue is in Object
-        } else if(types[i]->isByte()) {
-            str += "i8 " + types[i]->getValue + ", ";
-        } else if(types[i]->isInt()) {
-            str += "i32 " + types[i]->getValue + ", ";
+        if(args[i]->isBool()) {
+            str += "i1 " + args[i]->getValue() + ", "; //dont need dynamic cast because getValue is in Object
+        } else if(args[i]->isByte()) {
+            //check if need to auto transform byte to int
+            if(typesOfFunc[i] == "INT") {
+                string reg = getNextReg();
+                string line = reg + " = zext i8 " + args[i]->getValue() + " to i32";
+                CodeBuffer::instance().emit(line);
+                str += "i32 " + reg + ", ";
+            } else {
+                str += "i8 " + args[i]->getValue() + ", ";
+            }
+        } else if(args[i]->isInt()) {
+            str += "i32 " + args[i]->getValue() + ", ";
         }
     }
-    if(types[len - 1]->isBool()) {
-        str += "i1" + types[i]->getValue;
-    } else if(types[i]->isByte()) {
-        str += "i8" + types[i]->getValue;
-    } else if(types[i]->isInt()) {
-        str += "i32" + types[i]->getValue;
+    if(args[len - 1]->isBool()) {
+        str += "i1 " + args[len - 1]->getValue();
+    } else if(args[len - 1]->isByte()) {
+        if(typesOfFunc[len - 1] == "INT") {
+            string reg = getNextReg();
+            string line = reg + " = zext i8 " + args[len - 1]->getValue() + " to i32";
+            CodeBuffer::instance().emit(line);
+            str += "i32 " + reg;        
+        } else {
+            str += "i8 " + args[len - 1]->getValue();
+        }   
+    } else if(args[len - 1]->isInt()) {
+        str += "i32 " + args[len - 1]->getValue();
     }
     return str;
 }
 
 std::string getNextReg() {
     string name = "%t";
-    name += std::to_string(counter++)
+    name += std::to_string(regCounter++);
     return name;
 }
 
 std::string getNextGlobal() {
     string name = "@.g";
-    return name + std::to_string(counter++);
+    return name + std::to_string(regCounter++);
 }
 
 void initialEmit() {
@@ -1153,7 +1286,7 @@ void initialEmit() {
     CodeBuffer::instance().emitGlobal("@.int_specifier = constant [4 x i8] c\"\%d\\0A\\00\"");
     CodeBuffer::instance().emitGlobal("@.str_specifier = constant [4 x i8] c\"\%s\\0A\\00\"");
     CodeBuffer::instance().emitGlobal("@.devision_by_zero = constant [23 x i8] c\"Error devision by zero\\00\"");
-    CodeBuffer::instance().emitGlobal("define void @printi(i32) {");
+    CodeBuffer::instance().emit("define void @printi(i32) {");
     CodeBuffer::instance().emit("\%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
     CodeBuffer::instance().emit("call i32 (i8*, ...) @printf(i8* \%spec_ptr, i32 %0)");
     CodeBuffer::instance().emit("ret void");
@@ -1171,7 +1304,7 @@ int main() {
         errorMainMissing();
         destroyOnExit();
     }
-    endScope();
+    //endScope();
     /* cout << symbolTable.top(); */
     CodeBuffer::instance().printGlobalBuffer();
     CodeBuffer::instance().printCodeBuffer();

@@ -63,6 +63,8 @@ void ProtoType::setIsLiteral(bool isLit) {
     this->isLiteral = isLit;
 }
 
+std::vector<std::string> ProtoType::getStrList() const { return std::vector<std::string>();}
+
 /* ******************** */
 
 Void::Void() : ProtoType(TypeAnnotation()) {}
@@ -315,6 +317,9 @@ Bool& Bool::operator=(const Bool& other) {
 ProtoType* Bool::clone() const {
     Bool* b = new Bool(TypeAnnotation(this->isConst), this->boolType, this->isLiteral);
     b->value = this->value;
+    b->trueList = this->trueList;
+    b->falseList = this->falseList;
+    b->label = this->label;
     return b;
 }
 
@@ -330,7 +335,11 @@ std::string Bool::genNextBool() {
 }
 
 std::string Bool::getValue() {
-    if(this->boolType == OTHER) {
+    if (!this->value.empty()) {
+        return this->value;
+    }
+
+    if(this->boolType == B_OTHER) {
         string labT = CodeBuffer::instance().genLabel();
         CodeBuffer::instance().bpatch(this->trueList, labT);
         int loc1 = CodeBuffer::instance().emit("br label @");
@@ -349,9 +358,10 @@ std::string Bool::getValue() {
     } else {
         string labT = CodeBuffer::instance().genLabel();
         CodeBuffer::instance().bpatch(this->trueList, labT);
+        int loc1 = CodeBuffer::instance().emit("br label @");
         string labF = CodeBuffer::instance().genLabel();
-        CodeBuffer::instance().bpatch(this->falseList, labF);
-        if(this->boolType == TRUE) {
+        CodeBuffer::instance().bpatch(CodeBuffer::merge(this->falseList, CodeBuffer::makelist({loc1, BranchLabelIndex::FIRST})), labF);
+        if(this->boolType == B_TRUE) {
             this->setValue("true");
             return this->value;
         } else {
@@ -359,6 +369,30 @@ std::string Bool::getValue() {
             return this->value;
         }
     }
+}
+
+const std::vector<std::pair<int,BranchLabelIndex>>& Bool::getTrueList() {
+    return this->trueList;
+}
+
+const std::vector<std::pair<int,BranchLabelIndex>>& Bool::getFalseList() {
+    return this->falseList;
+}
+
+void Bool::setTrueList(std::vector<std::pair<int,BranchLabelIndex>> tList) {
+    this->trueList = tList;
+}
+
+void Bool::setFalseList(std::vector<std::pair<int, BranchLabelIndex>> fList) {
+    this->falseList = fList;
+}
+
+std::string Bool::getLabel() const {
+    return this->label;
+}
+
+void Bool::setLabel(std::string newLabel) {
+    this->label = newLabel;
 }
 
 /* ******************** */

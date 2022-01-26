@@ -153,10 +153,12 @@ bool SymbolTable::addParameters(const Formals &parameters, int lineno) {
             output::errorDef(lineno, names[i]);
             return true;
         }
+        
         types[i]->setConst(true);
+        types[i]->setIsLiteral(true);
         this->insertAtTop(names[i], *(types[i]), true);
         std::string val = "%";
-        val += std::to_string(count);
+        val += std::to_string(count++);
         this->setValueById(names[i], val);
     }
     return false;
@@ -184,7 +186,9 @@ void SymbolTable::setValueById(const string &id, std::string& value) {
     for (SymbolTableEntry& entry: *this) {
         for (Symbol& sym: entry) {
             if(sym.getName() == id) {
+                cout << "found id " << id << " and gave it value " << value << endl;
                 sym.setValue(value);
+                cout << "new value of sym: " << sym.getValue() << endl;
                 return;
             }
         }

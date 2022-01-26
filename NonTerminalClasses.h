@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include "bp.hpp"
+#include <iostream>
 
 class Object {
 protected:
@@ -80,6 +81,7 @@ public:
     //Only Func should implement, the others have empty implementaion
     virtual ProtoType& getReturnType() const;
     virtual bool compareArgs(const std::vector<ProtoType*>& args);
+    virtual std::vector<std::string> getStrList() const;
 //    virtual std::string getValue() override { return this->value; }
 //    virtual void setValue(std::string newValue) override { this->value = newValue; }
 };
@@ -136,12 +138,13 @@ public:
     ProtoType& getReturnType() const override;
     bool compareArgs(const std::vector<ProtoType*>& list) override;
     bool compareArgs() const override;
-    std::vector<std::string> getStrList() const;
+    std::vector<std::string> getStrList() const override;
 };
+
+enum BoolType {B_TRUE, B_FALSE, B_OTHER};
 
 class Bool : public ProtoType {
 private:
-    enum BoolType {TRUE, FALSE, OTHER};
     inline static int counter = 0;
     BoolType boolType;
     std::vector<std::pair<int,BranchLabelIndex>> trueList;
@@ -149,8 +152,8 @@ private:
     std::string label;
     static std::string genNextBool();
 public:
-    explicit Bool(BoolType bType = OTHER, bool isLiteral=false) : ProtoType(isLiteral), boolType(bType), trueList(), falseList(), label() {}
-    explicit Bool(const TypeAnnotation& typeAnnotation, BoolType bType = OTHER, bool isLiteral = false);
+    explicit Bool(BoolType bType=B_OTHER, bool isLiteral=false) : ProtoType(isLiteral), boolType(bType), trueList(), falseList(), label() {}
+    explicit Bool(const TypeAnnotation& typeAnnotation, BoolType bType = B_OTHER, bool isLiteral = false);
     Bool(const Bool& other);
     Bool& operator=(const Bool& other);
     ~Bool() override = default;
@@ -158,10 +161,10 @@ public:
     std::string typeToString() const override;
     bool isBool() const override;
 
-    std::vector<std::pair<int,BranchLabelIndex>> getTrueList() const;
-    std::vector<std::pair<int,BranchLabelIndex>> getFalseList() const;
-    void setTrueList(std::vector<std::pair<int,BranchLabelIndex>>& trueList);
-    void setFalseList(std::vector<std::pair<int, BranchLabelIndex>>& falseList);
+    const std::vector<std::pair<int,BranchLabelIndex>>& getTrueList();
+    const std::vector<std::pair<int,BranchLabelIndex>>& getFalseList();
+    void setTrueList(std::vector<std::pair<int,BranchLabelIndex>> tList);
+    void setFalseList(std::vector<std::pair<int, BranchLabelIndex>> fList);
     std::string getLabel() const;
     void setLabel(std::string newLabel);
 
@@ -292,7 +295,7 @@ public:
 class StringVal : public Object {
 public:
     std::string str;
-    explicit StringVal(std::string str) : str(str) {}
+    explicit StringVal(std::string str) : str(str.substr(1, str.length() - 2)) {}
 
     bool isStringVal() const override { return true; }
 };
