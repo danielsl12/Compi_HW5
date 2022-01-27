@@ -19,6 +19,11 @@ string CodeBuffer::genLabel(){
 	label << buffer.size();
 	std::string ret(label.str());
 	label << ":";
+	if(buffer[buffer.size() - 1].find("br ") == string::npos) {
+		std::string line = "br label %";
+		line = line + std::string(label.str().substr(0, label.str().length() - 1));
+		emit(line);
+	}
 	emit(label.str());
 	return ret;
 }

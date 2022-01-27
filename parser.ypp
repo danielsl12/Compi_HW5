@@ -412,6 +412,15 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE {
                     CodeBuffer::instance().emit(tmpLine);
                     tmpLine = "store i32 " + reg1 + ", i32* " + reg2; //store i32 %t0, i32* %t1
                     CodeBuffer::instance().emit(tmpLine);
+                    
+                    
+                    /*
+                    reg2 = getNextReg();
+                    tmpLine = reg2 + " = load i32, i32* " + reg1;
+                    CodeBuffer::instance().emit(tmpLine);
+                    tmpLine = "call void @printi(i32 " + reg2 + ")";
+                    CodeBuffer::instance().emit(tmpLine);
+                    */
                 } else {
                     //cout << 21 << "b" << endl;
                     errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
@@ -461,6 +470,14 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE {
                         }
                         std::string line = "store i32 " + reg2 + ", i32* " + reg1;
                         CodeBuffer::instance().emit(line);
+
+                        /*
+                        reg2 = getNextReg();
+                        line = reg2 + " = load i32, i32* " + reg1;
+                        CodeBuffer::instance().emit(line);
+                        line = "call void @printi(i32 " + reg2 + ")";
+                        CodeBuffer::instance().emit(line);
+                        */
                     }   
                 } else {
                     errorDef(yylineno, (dynamic_cast<Id*>($3)->id));
@@ -498,7 +515,7 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE {
                     std::string value = dynamic_cast<ProtoType*>($3)->getValue(); //value is a terminal like b5, 13, true... or a register
                     //cout << "23d" << endl;
                     std::string reg1 = getNextReg();
-                    std::string tmpLine = reg1 + " = getelementptr i32, i32* %stack, i32 " + to_string(offset);;
+                    std::string tmpLine = reg1 + " = getelementptr i32, i32* %stack, i32 " + to_string(offset);
                     CodeBuffer::instance().emit(tmpLine);
                     string line;
                     /*
@@ -523,6 +540,15 @@ NonIfStatement: LBRACE { symbolTable.pushNewEntry(); } Statements RBRACE {
                    
                     //cout << "23g" << endl;
                     CodeBuffer::instance().emit(line);
+
+
+                    /*
+                    reg2 = getNextReg();
+                    line = reg2 + " = load i32, i32* " + reg1;
+                    CodeBuffer::instance().emit(line);
+                    line = "call void @printi(i32 " + reg2 + ")";
+                    CodeBuffer::instance().emit(line);
+                    */
                 } else {
                     errorUndef(yylineno, (dynamic_cast<Id*>($1)->id));
                     destroyOnExit();
